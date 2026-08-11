@@ -1456,27 +1456,6 @@ main {
   font-size: 14px;
 }
 
-/* Footer */
-
-.bio-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 48px;
-  padding: 20px 0 0;
-  color: var(--muted);
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-}
-
-.bio-footer a {
-  color: var(--muted);
-}
-
-.bio-footer a:hover {
-  color: var(--ink);
-}
-
 /* =====================================================================
    Dashboard
    ===================================================================== */

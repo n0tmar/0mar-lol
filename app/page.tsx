@@ -128,10 +128,6 @@ export default async function Home() {
             eagerFirst={pinned.length === 0}
           />
         </section>
-
-        <footer className="bio-footer">
-          <span dir="ltr">© mar</span>
-        </footer>
       </div>
     </main>
   );
