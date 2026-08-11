@@ -6,7 +6,10 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "predev": "npm run support:qr",
     "dev": "node scripts/next-dev.mjs",
+    "support:qr": "node --experimental-strip-types scripts/generate-support-qr.ts",
+    "prebuild": "npm run support:qr",
     "build": "next build",
     "start": "next start",
     "test": "npm run test:unit && npm run build && node --test tests/integration.test.mjs",
@@ -29,7 +32,8 @@
     "@types/web-push": "^3.6.4",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.3.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "uqr": "^0.1.3"
   },
   "type": "module",
   "displayName": "Omar Resources"

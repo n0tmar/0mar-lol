@@ -1,62 +1,14 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
+import { SUPPORT_TIERS, supportQrPath } from "@/lib/support-tiers";
 
 export const metadata: Metadata = {
   title: "الدعم",
   description:
     "ادعم عمر — دعمك يساعدني على استمرار المحتوى والأدوات. الدفع عبر Ziina بالدرهم الإماراتي.",
 };
-
-// Payment links (Ziina) — order: Supporter → Sponsor.
-// Displayed prices are SAR; links charge in AED (Ziina).
-const TIERS = [
-  {
-    id: "supporter",
-    name: "داعم",
-    en: "Supporter",
-    desc: "شكراً من القلب — دعمك يساند المحتوى",
-    usd: 3,
-    sar: 11.25,
-    url: "https://pay.ziina.com/martools/fh5DA6C_3?source=app",
-  },
-  {
-    id: "coffee",
-    name: "دعم قهوة",
-    en: "Coffee Support",
-    desc: "قهوة أشربها وأكمل الشغل لك",
-    usd: 5,
-    sar: 18.75,
-    url: "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
-  },
-  {
-    id: "project",
-    name: "دعم مشروع",
-    en: "Project Support",
-    desc: "يساعدني أشتغل على أدوات ومشاريع جديدة",
-    usd: 10,
-    sar: 37.5,
-    url: "https://pay.ziina.com/martools/7TkpdSEfe?source=app",
-  },
-  {
-    id: "big",
-    name: "داعم كبير",
-    en: "Big Supporter",
-    desc: "شريك حقيقي في المحتوى، وأنا دايم أذكرك",
-    usd: 25,
-    sar: 93.75,
-    url: "https://pay.ziina.com/martools/XkC__PHhG?source=app",
-  },
-  {
-    id: "sponsor",
-    name: "راعي",
-    en: "Sponsor",
-    desc: "الراعي الرسمي — شكراً خاص من القلب",
-    usd: 50,
-    sar: 187.5,
-    url: "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
-  },
-] as const;
 
 function formatPrice(value: number) {
   return value % 1 === 0 ? String(value) : value.toFixed(2);
@@ -80,8 +32,24 @@ export default function SupportPage() {
           </p>
         </header>
 
+        <p className="support-scan-hint">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+            <path d="M8 8h3v3H8zM14 8h2v2h-2zM8 14h2v2H8zM13 13h3v3h-3z" />
+          </svg>
+          <span>على الكمبيوتر؟ امسح رمز الباقة بكاميرا جوالك وادفع مباشرة</span>
+        </p>
+
         <div className="support-tiers">
-          {TIERS.map((tier, index) => (
+          {SUPPORT_TIERS.map((tier, index) => (
             <a
               key={tier.id}
               className={`support-tier ${index === 0 ? "support-tier--featured" : ""}`}
@@ -99,6 +67,17 @@ export default function SupportPage() {
                 <span className="riyal-symbol" aria-hidden="true" />
               </div>
               <span className="support-tier__usd">≈ ${tier.usd}</span>
+              <figure className="support-tier__qr">
+                <Image
+                  className="support-tier__qr-image"
+                  src={supportQrPath(tier)}
+                  width={132}
+                  height={132}
+                  alt=""
+                  unoptimized
+                />
+                <figcaption>امسح للدفع بالجوال</figcaption>
+              </figure>
               <span className="support-tier__cta">ساندني</span>
             </a>
           ))}

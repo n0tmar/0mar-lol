@@ -123,6 +123,37 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   // navigations show stale content until a full refresh.
   assert.match(swSource, /RSC/);
 
+  // Desktop support cards expose one locally hosted QR per exact payment
+  // link. Hashed assets can be cached forever without stale payment URLs.
+  const supportResponse = await fetch(`${origin}/support`);
+  assert.equal(supportResponse.status, 200);
+  const supportHtml = await supportResponse.text();
+  const paymentLinks = [
+    "https://pay.ziina.com/martools/fh5DA6C_3?source=app",
+    "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
+    "https://pay.ziina.com/martools/7TkpdSEfe?source=app",
+    "https://pay.ziina.com/martools/XkC__PHhG?source=app",
+    "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
+  ];
+  for (const paymentLink of paymentLinks) {
+    assert.ok(supportHtml.includes(`href="${paymentLink}"`));
+  }
+  const qrPaths = [
+    ...supportHtml.matchAll(/src="(\/qr\/support-[^"]+\.svg)"/g),
+  ].map((match) => match[1]);
+  assert.equal(qrPaths.length, paymentLinks.length);
+  assert.equal(new Set(qrPaths).size, paymentLinks.length);
+  for (const qrPath of qrPaths) {
+    const qrResponse = await fetch(`${origin}${qrPath}`);
+    assert.equal(qrResponse.status, 200);
+    assert.equal(qrResponse.headers.get("content-type"), "image/svg+xml");
+    assert.match(
+      qrResponse.headers.get("cache-control") || "",
+      /max-age=31536000, immutable/,
+    );
+    assert.match(await qrResponse.text(), /<svg shape-rendering="crispEdges"/);
+  }
+
   // Custom 404 page for unmatched routes.
   const notFound = await fetch(`${origin}/no-such-page`);
   assert.equal(notFound.status, 404);
