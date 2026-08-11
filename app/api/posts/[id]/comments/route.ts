@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   addComment,
   countApprovedComments,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { anonymizeIp } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
+import { sendNewCommentPush } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,6 +128,26 @@ export async function POST(
     });
   }
 
-  addComment({ postId: id, name, body, ipHash, parentId, visitorId });
+  const commentId = addComment({
+    postId: id,
+    name,
+    body,
+    ipHash,
+    parentId,
+    visitorId,
+  });
+  after(async () => {
+    try {
+      await sendNewCommentPush({
+        commentId,
+        name,
+        body,
+        postTitle: post.title,
+        isReply: Boolean(parentId),
+      });
+    } catch (error) {
+      console.error("Failed to dispatch comment Web Push.", error);
+    }
+  });
   return response;
 }

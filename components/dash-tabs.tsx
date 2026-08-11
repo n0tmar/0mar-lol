@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconComment, IconEdit, IconText } from "@/components/icons";
+import {
+  isDashboardTabActive,
+  type DashboardTabHref,
+} from "@/lib/dashboard-nav";
 
 export function DashTabs({ badge }: { badge: number }) {
   const pathname = usePathname();
 
-  const tabs = [
+  const tabs: {
+    href: DashboardTabHref;
+    label: string;
+    icon: typeof IconText;
+  }[] = [
     { href: "/dashboard", label: "المنشورات", icon: IconText },
     { href: "/dashboard/new", label: "منشور جديد", icon: IconEdit },
     { href: "/dashboard/comments", label: "التعليقات", icon: IconComment },
@@ -16,7 +24,7 @@ export function DashTabs({ badge }: { badge: number }) {
   return (
     <nav className="dash-tabs" aria-label="أقسام لوحة التحكم">
       {tabs.map((tab) => {
-        const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
+        const active = isDashboardTabActive(pathname, tab.href);
         const Icon = tab.icon;
         return (
           <Link

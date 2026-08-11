@@ -10,6 +10,7 @@ import {
 import { Avatar } from "@/components/avatar";
 import { PostFeed } from "@/components/post-feed";
 import { IconPin } from "@/components/icons";
+import { PwaInstall } from "@/components/pwa-install";
 import type { FeedPost } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +106,7 @@ export default async function Home() {
               <MailIcon />
             </a>
           </nav>
+          <PwaInstall />
         </header>
 
         {pinned.length > 0 && (

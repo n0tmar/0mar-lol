@@ -23,7 +23,9 @@ export function PwaRegister() {
     }
 
     const onIdle = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register("/sw.js", { scope: "/", updateViaCache: "none" })
+        .catch(() => {});
     };
     if ("requestIdleCallback" in window) {
       (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(onIdle);

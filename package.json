@@ -11,19 +11,22 @@
     "start": "next start",
     "test": "npm run test:unit && npm run build && node --test tests/integration.test.mjs",
     "test:unit": "node --experimental-strip-types --test tests/unit/*.test.mjs",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern data"
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern data",
+    "push:keys": "web-push generate-vapid-keys --json"
   },
   "dependencies": {
     "marked": "^18.0.7",
     "next": "^16.3.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/web-push": "^3.6.4",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.3.0",
     "typescript": "5.9.3"

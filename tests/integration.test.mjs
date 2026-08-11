@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createECDH, randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import webpush from "web-push";
 
 const port = 3199;
 const origin = `http://localhost:${port}`;
+const vapidKeys = webpush.generateVAPIDKeys();
+const pushClient = createECDH("prime256v1");
+pushClient.generateKeys();
 
 function cookieFrom(response) {
   return response.headers.get("set-cookie")?.split(";")[0] || "";
@@ -45,6 +50,9 @@ test("publishing, likes, downloads, comments and media work together", async (t)
         DATA_DIR: dataDirectory,
         ADMIN_PASSWORD: "local-test-password",
         SESSION_SECRET: "local-test-secret-at-least-32-characters-long",
+        VAPID_PUBLIC_KEY: vapidKeys.publicKey,
+        VAPID_PRIVATE_KEY: vapidKeys.privateKey,
+        VAPID_SUBJECT: "mailto:test@example.com",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -54,6 +62,19 @@ test("publishing, likes, downloads, comments and media work together", async (t)
 
   const health = await fetch(`${origin}/api/health`);
   assert.equal(health.status, 200);
+
+  const manifestResponse = await fetch(`${origin}/manifest.webmanifest`);
+  assert.equal(manifestResponse.status, 200);
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.id, "/");
+  assert.equal(manifest.scope, "/");
+  assert.equal(manifest.display, "standalone");
+
+  const serviceWorker = await fetch(`${origin}/sw.js`);
+  assert.equal(serviceWorker.status, 200);
+  assert.match(serviceWorker.headers.get("cache-control") || "", /no-store/);
+  assert.equal(serviceWorker.headers.get("service-worker-allowed"), "/");
+  assert.match(await serviceWorker.text(), /notificationclick/);
 
   // Admin area is protected.
   const protectedDashboard = await fetch(`${origin}/dashboard`, {
@@ -80,6 +101,56 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     adminCookie.startsWith("omar_admin_session="),
     JSON.stringify(Object.fromEntries(loginResponse.headers)),
   );
+
+  // Push subscriptions are admin-only, validated, persisted, and removable.
+  const pushSubscription = {
+    endpoint: "https://push.example.test/admin-device",
+    keys: {
+      p256dh: pushClient.getPublicKey().toString("base64url"),
+      auth: randomBytes(16).toString("base64url"),
+    },
+  };
+  const unauthorizedPush = await fetch(`${origin}/api/admin/push`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: origin },
+    body: JSON.stringify(pushSubscription),
+  });
+  assert.equal(unauthorizedPush.status, 401);
+
+  const invalidPush = await fetch(`${origin}/api/admin/push`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: adminCookie,
+      Origin: origin,
+    },
+    body: JSON.stringify({ ...pushSubscription, endpoint: "http://invalid" }),
+  });
+  assert.equal(invalidPush.status, 400);
+
+  const subscribePush = await fetch(`${origin}/api/admin/push`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: adminCookie,
+      Origin: origin,
+    },
+    body: JSON.stringify(pushSubscription),
+  });
+  assert.equal(subscribePush.status, 201);
+  assert.deepEqual(await subscribePush.json(), { subscribed: true });
+
+  const unsubscribePush = await fetch(`${origin}/api/admin/push`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: adminCookie,
+      Origin: origin,
+    },
+    body: JSON.stringify({ endpoint: pushSubscription.endpoint }),
+  });
+  assert.equal(unsubscribePush.status, 200);
+  assert.deepEqual(await unsubscribePush.json(), { subscribed: false });
 
   // Publish an image post with an attached download file.
   const png = Buffer.from(
@@ -110,6 +181,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   // accessibility; focus zoom is handled with 16px controls instead.
   const initialHtml = await (await fetch(origin)).text();
   assert.match(initialHtml, /أداة تجريبية/);
+  assert.match(initialHtml, /ثبّت التطبيق/);
   assert.doesNotMatch(initialHtml, /user-scalable=no|maximum-scale=1/);
   const postId = initialHtml.match(/\/api\/media\/([a-f0-9-]+)/)?.[1];
   assert.ok(postId, "file post media url should be visible");
@@ -192,6 +264,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     await fetch(`${origin}/dashboard`, { headers: { Cookie: adminCookie } })
   ).text();
   assert.match(dashboardHtml, /أداة تجريبية/);
+  assert.match(dashboardHtml, /إشعارات التعليقات/);
 
   const commentsHtml = await (
     await fetch(`${origin}/dashboard/comments`, { headers: { Cookie: adminCookie } })

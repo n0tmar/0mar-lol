@@ -10,6 +10,18 @@ import { LIKE_KIND, type PostKind, type PostRecord, type CommentRecord } from ".
 export type { PostKind, PostRecord, CommentRecord } from "./types";
 export { LIKE_KIND } from "./types";
 
+export type AdminPushSubscription = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  vapidPublicKey: string;
+};
+
+export type AdminPushSubscriptionInput = Omit<
+  AdminPushSubscription,
+  "vapidPublicKey"
+>;
+
 // DATA_DIR is a container-only setting (compose.yaml). Locally we always
 // use the project's data/ directory so `npm run dev` and `npm start`
 // never silently write to a stray absolute path.
@@ -71,6 +83,16 @@ function initialize(database: DatabaseSync) {
       updated_at INTEGER NOT NULL
     );
 
+    -- Admin devices subscribed to comment Web Push notifications.
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      vapid_public_key TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     -- Lightweight migrations for older databases.
     CREATE INDEX IF NOT EXISTS comments_post_status_idx
       ON comments(post_id, status, created_at);
@@ -82,6 +104,8 @@ function initialize(database: DatabaseSync) {
       ON reactions(post_id, kind);
     CREATE INDEX IF NOT EXISTS posts_published_created_idx
       ON posts(published, created_at DESC);
+    CREATE INDEX IF NOT EXISTS push_subscriptions_updated_idx
+      ON push_subscriptions(updated_at DESC);
   `);
 
   // Migrations: add columns that may be missing in older databases.
@@ -120,6 +144,15 @@ function initialize(database: DatabaseSync) {
   }
   if (!postColumns.some((c) => c.name === "pinned")) {
     database.exec("ALTER TABLE posts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
+  }
+
+  const pushColumns = database
+    .prepare("PRAGMA table_info(push_subscriptions)")
+    .all() as { name: string }[];
+  if (!pushColumns.some((c) => c.name === "vapid_public_key")) {
+    database.exec(
+      "ALTER TABLE push_subscriptions ADD COLUMN vapid_public_key TEXT NOT NULL DEFAULT ''",
+    );
   }
 
   const reactionColumns = database
@@ -453,6 +486,7 @@ export function addComment(input: {
   parentId?: string | null;
   visitorId?: string | null;
 }) {
+  const id = randomUUID();
   getDatabase()
     .prepare(
       `INSERT INTO comments
@@ -460,7 +494,7 @@ export function addComment(input: {
        VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?)`,
     )
     .run(
-      randomUUID(),
+      id,
       input.postId,
       input.parentId ?? null,
       input.name,
@@ -480,6 +514,7 @@ export function addComment(input: {
       )
       .run(input.visitorId, input.name, Date.now());
   }
+  return id;
 }
 
 export function getVisitorName(visitorId: string): string | null {
@@ -487,6 +522,60 @@ export function getVisitorName(visitorId: string): string | null {
     .prepare("SELECT name FROM visitors WHERE visitor_id = ?")
     .get(visitorId) as { name: string } | undefined;
   return row?.name ?? null;
+}
+
+export function upsertPushSubscription(
+  input: AdminPushSubscriptionInput,
+  vapidPublicKey: string,
+) {
+  const now = Date.now();
+  const database = getDatabase();
+  database
+    .prepare(
+      `INSERT INTO push_subscriptions
+       (endpoint, p256dh, auth, vapid_public_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET
+         p256dh = excluded.p256dh,
+         auth = excluded.auth,
+         vapid_public_key = excluded.vapid_public_key,
+         updated_at = excluded.updated_at`,
+    )
+    .run(
+      input.endpoint,
+      input.p256dh,
+      input.auth,
+      vapidPublicKey,
+      now,
+      now,
+    );
+
+  // One admin can keep several phones/tablets, but cap abandoned entries.
+  database.exec(`
+    DELETE FROM push_subscriptions
+    WHERE endpoint NOT IN (
+      SELECT endpoint FROM push_subscriptions
+      ORDER BY updated_at DESC
+      LIMIT 20
+    )
+  `);
+}
+
+export function listPushSubscriptions(): AdminPushSubscription[] {
+  return getDatabase()
+    .prepare(
+      `SELECT endpoint, p256dh, auth,
+              vapid_public_key AS vapidPublicKey
+       FROM push_subscriptions
+       ORDER BY updated_at DESC`,
+    )
+    .all() as AdminPushSubscription[];
+}
+
+export function deletePushSubscription(endpoint: string) {
+  return getDatabase()
+    .prepare("DELETE FROM push_subscriptions WHERE endpoint = ?")
+    .run(endpoint);
 }
 
 export function deleteComment(id: string) {

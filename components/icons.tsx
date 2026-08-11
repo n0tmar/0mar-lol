@@ -282,6 +282,45 @@ export function IconExternalLink({ size = 14 }: IconProps) {
   );
 }
 
+export function IconBell({ size = 14 }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+      <path d="M10 21h4" />
+    </svg>
+  );
+}
+
+export function IconBellOff({ size = 14 }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m3 3 18 18" />
+      <path d="M10 5.3A6 6 0 0 1 18 8c0 3.6.8 5.3 1.6 6.4M6.3 6.3C6.1 6.8 6 7.4 6 8c0 7-3 7-3 9h14" />
+      <path d="M10 21h4" />
+    </svg>
+  );
+}
+
 export function IconLogout({ size = 14 }: IconProps) {
   return (
     <svg
