@@ -20,7 +20,7 @@ export const SUPPORT_TIERS = [
     id: "coffee",
     name: "دعم قهوة",
     en: "Coffee Support",
-    desc: "قهوة أشربها وأكمل الشغل لك",
+    desc: "اشتر لي قهوة",
     usd: 5,
     sar: 18.75,
     url: "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
