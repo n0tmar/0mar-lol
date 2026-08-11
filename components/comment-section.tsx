@@ -60,10 +60,9 @@ function CommentItem({
               node.parent_visitor_id === visitorId && (
                 <span
                   className="creator-reply-badge"
-                  title="هذا رد من عمر على تعليقك"
+                  title="رد من صاحب الموقع"
                 >
                   <IconReply size={11} />
-                  رد من عمر على تعليقك
                 </span>
               )}
             {node.parent_name && (

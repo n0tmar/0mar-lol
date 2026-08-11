@@ -120,9 +120,8 @@ function PostCard({ post, idMap, lazy }: { post: FeedPost; idMap: Record<string,
           <TypeIcon kind={post.kind} />
         </span>
         {post.hasCreatorReply && (
-          <span className="creator-reply-badge" title="عمر رد على تعليقك">
+          <span className="creator-reply-badge" title="رد على تعليقك">
             <IconReply size={11} />
-            رد عليك عمر
           </span>
         )}
       </div>
