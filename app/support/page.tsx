@@ -18,7 +18,7 @@ const TIERS = [
     desc: "شكراً من القلب — دعمك يساند المحتوى",
     usd: 3,
     sar: 11.25,
-    url: "https://pay.ziina.com/martools/DoP1QCG_C?source=ziiBoard",
+    url: "https://pay.ziina.com/martools/fh5DA6C_3?source=app",
   },
   {
     id: "coffee",
@@ -27,7 +27,7 @@ const TIERS = [
     desc: "قهوة أشربها وأكمل الشغل لك",
     usd: 5,
     sar: 18.75,
-    url: "https://pay.ziina.com/martools/auHSxEL3t?source=ziiBoard",
+    url: "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
   },
   {
     id: "project",
@@ -36,7 +36,7 @@ const TIERS = [
     desc: "يساعدني أشتغل على أدوات ومشاريع جديدة",
     usd: 10,
     sar: 37.5,
-    url: "https://pay.ziina.com/martools/KU5W01Gi9?source=ziiBoard",
+    url: "https://pay.ziina.com/martools/7TkpdSEfe?source=app",
   },
   {
     id: "big",
@@ -45,7 +45,7 @@ const TIERS = [
     desc: "شريك حقيقي في المحتوى، وأنا دايم أذكرك",
     usd: 25,
     sar: 93.75,
-    url: "https://pay.ziina.com/martools/GGy6PURSE?source=ziiBoard",
+    url: "https://pay.ziina.com/martools/XkC__PHhG?source=app",
   },
   {
     id: "sponsor",
@@ -54,7 +54,7 @@ const TIERS = [
     desc: "الراعي الرسمي — شكراً خاص من القلب",
     usd: 50,
     sar: 187.5,
-    url: "https://pay.ziina.com/martools/tjpZ0R9F0?source=ziiBoard",
+    url: "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
   },
 ] as const;
 
