@@ -32,7 +32,17 @@ export function FileUpload({
     event.preventDefault();
     setDragging(false);
     const dropped = event.dataTransfer.files[0];
-    if (dropped) onSelect(dropped);
+    if (!dropped) return;
+    onSelect(dropped);
+    // The hidden input is what the form submits, and input.files is
+    // read-only — populate it through a DataTransfer so a dropped file
+    // actually reaches the server (previously the form sent no file and
+    // the post was rejected with "اختر ملفاً للمنشور").
+    if (inputRef.current) {
+      const transfer = new DataTransfer();
+      transfer.items.add(dropped);
+      inputRef.current.files = transfer.files;
+    }
   }
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {

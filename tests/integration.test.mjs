@@ -495,6 +495,26 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     "stray file removed on startup, referenced files kept",
   );
 
+  // A zip archive posts fine as a text post with a download file.
+  const zipForm = new FormData();
+  zipForm.set("kind", "text");
+  zipForm.set("title", "ملف مضغوط");
+  zipForm.set("body", "تحميل الأرشيف.");
+  zipForm.set("has_file", "on");
+  zipForm.set("published", "on");
+  zipForm.set(
+    "media",
+    new Blob([Buffer.from("PK\u0003\u0004fake-zip")], { type: "application/zip" }),
+    "archive.zip",
+  );
+  const createZip = await fetch(`${origin}/api/admin/posts`, {
+    method: "POST",
+    body: zipForm,
+    redirect: "manual",
+    headers: { Cookie: adminCookie, Origin: origin },
+  });
+  assert.equal(createZip.status, 303);
+
   // Comment throttling explains the exact rule and remaining wait.
   for (let index = 1; index <= 3; index += 1) {
     const allowedForm = new FormData();
