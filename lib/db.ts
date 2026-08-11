@@ -145,6 +145,43 @@ function initialize(database: DatabaseSync) {
   if (!postColumns.some((c) => c.name === "pinned")) {
     database.exec("ALTER TABLE posts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
   }
+  if (!postColumns.some((c) => c.name === "updated_at")) {
+    database.exec("ALTER TABLE posts ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0");
+  }
+  database.exec("UPDATE posts SET updated_at = created_at WHERE updated_at = 0");
+
+  // Canonical attachment layout: media_* is visual media only; file_* is
+  // the downloadable attachment for every current post kind. Older text
+  // posts stored downloads in media_*. Move metadata in-place so existing
+  // URLs/bytes survive and future kind conversions never overload a slot.
+  database.exec(`
+    UPDATE posts SET
+      file_path = media_path,
+      file_name = media_name,
+      file_type = media_type,
+      file_size = media_size
+    WHERE kind = 'text'
+      AND has_file = 1
+      AND file_path IS NULL
+      AND media_path IS NOT NULL;
+
+    UPDATE posts SET
+      media_path = NULL,
+      media_name = NULL,
+      media_type = NULL,
+      media_size = NULL,
+      width = NULL,
+      height = NULL,
+      thumb_path = NULL
+    WHERE kind = 'text'
+      AND has_file = 1
+      AND file_path IS NOT NULL
+      AND (
+        media_path IS NOT NULL OR media_name IS NOT NULL OR
+        media_type IS NOT NULL OR media_size IS NOT NULL OR
+        width IS NOT NULL OR height IS NOT NULL OR thumb_path IS NOT NULL
+      );
+  `);
 
   const pushColumns = database
     .prepare("PRAGMA table_info(push_subscriptions)")
@@ -364,13 +401,14 @@ export function createPost(input: {
   thumbPath?: string | null;
 }) {
   const id = randomUUID();
+  const now = Date.now();
   getDatabase()
     .prepare(
       `INSERT INTO posts (
         id, kind, title, body, media_path, media_name, media_type,
-        media_size, published, created_at, has_file, file_path, file_name, file_type, file_size,
-        width, height, thumb_path
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        media_size, published, created_at, updated_at, has_file,
+        file_path, file_name, file_type, file_size, width, height, thumb_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -382,7 +420,8 @@ export function createPost(input: {
       input.mediaType ?? null,
       input.mediaSize ?? null,
       input.published ? 1 : 0,
-      Date.now(),
+      now,
+      now,
       input.hasFile ? 1 : 0,
       input.filePath ?? null,
       input.fileName ?? null,
@@ -397,19 +436,24 @@ export function createPost(input: {
 
 export function setPostPublished(id: string, published: boolean) {
   return getDatabase()
-    .prepare("UPDATE posts SET published = ? WHERE id = ?")
-    .run(published ? 1 : 0, id);
+    .prepare(
+      "UPDATE posts SET published = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?",
+    )
+    .run(published ? 1 : 0, Date.now(), id);
 }
 
 export function setPostPinned(id: string, pinned: boolean) {
   return getDatabase()
-    .prepare("UPDATE posts SET pinned = ? WHERE id = ?")
-    .run(pinned ? 1 : 0, id);
+    .prepare(
+      "UPDATE posts SET pinned = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?",
+    )
+    .run(pinned ? 1 : 0, Date.now(), id);
 }
 
 export function updatePost(
   id: string,
   input: {
+    kind: PostKind;
     title: string;
     body: string;
     published: boolean;
@@ -426,17 +470,20 @@ export function updatePost(
     height?: number | null;
     thumbPath?: string | null;
   },
+  expectedUpdatedAt: number,
 ) {
+  const updatedAt = Math.max(Date.now(), expectedUpdatedAt + 1);
   return getDatabase()
     .prepare(
       `UPDATE posts SET
-        title = ?, body = ?, published = ?,
+        kind = ?, title = ?, body = ?, published = ?,
         has_file = ?, media_path = ?, media_name = ?, media_type = ?, media_size = ?,
         file_path = ?, file_name = ?, file_type = ?, file_size = ?,
-        width = ?, height = ?, thumb_path = ?
-       WHERE id = ?`,
+        width = ?, height = ?, thumb_path = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
     )
     .run(
+      input.kind,
       input.title,
       input.body,
       input.published ? 1 : 0,
@@ -452,7 +499,9 @@ export function updatePost(
       input.width ?? null,
       input.height ?? null,
       input.thumbPath ?? null,
+      updatedAt,
       id,
+      expectedUpdatedAt,
     );
 }
 

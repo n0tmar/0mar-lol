@@ -48,7 +48,7 @@ export async function GET(
   const { id } = await context.params;
   const post = getPost(id);
 
-  if (!post || !post.media_path) {
+  if (!post) {
     return new Response("Not found", { status: 404 });
   }
   if (post.published !== 1 && !isAdminRequest(request)) {
@@ -74,6 +74,10 @@ export async function GET(
     : useThumb
       ? post.thumb_path!
       : post.media_path;
+  if (!servePath) {
+    return new Response("Not found", { status: 404 });
+  }
+
   const serveName = downloadFile?.name ?? post.media_name ?? "download";
   const serveType = useThumb
     ? "image/webp"
@@ -84,9 +88,8 @@ export async function GET(
     return new Response("File missing", { status: 404 });
   }
 
-  // Count only successful, real downloads after confirming bytes exist:
-  // text files live in media_*, image/video attachments in file_*, and
-  // legacy file posts in media_*.
+  // Count only successful, real downloads after confirming bytes exist.
+  // Current attachments live in file_*; legacy file rows use media_*.
   if (downloadFile) incrementDownloadCount(id);
 
   // Unknown/executable types are forced to download — never rendered inline

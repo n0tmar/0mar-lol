@@ -13,6 +13,7 @@ export type PostRecord = {
   media_size: number | null;
   published: number;
   created_at: number;
+  updated_at: number;
   like_count: number;
   comment_count: number;
   download_count: number;

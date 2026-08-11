@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getDataDirectory, getDatabase } from "@/lib/db";
+import type { PostKind } from "@/lib/types";
 import sharp from "sharp";
 
 export async function saveFile(buffer: Buffer, upload: File) {
@@ -19,6 +20,10 @@ export async function saveFile(buffer: Buffer, upload: File) {
     type: upload.type || "application/octet-stream",
     size: buffer.length,
   };
+}
+
+export async function saveUpload(upload: File) {
+  return saveFile(Buffer.from(await upload.arrayBuffer()), upload);
 }
 
 export async function makeImageThumb(buffer: Buffer): Promise<{
@@ -47,6 +52,33 @@ export async function makeImageThumb(buffer: Buffer): Promise<{
   await writeFile(path.join(uploadDirectory, thumbName), thumbBuffer);
 
   return { thumbPath: `uploads/${thumbName}`, width, height };
+}
+
+/** Save validated visual media and produce canonical image metadata. */
+export async function saveVisualUpload(
+  upload: File,
+  kind: Exclude<PostKind, "text">,
+) {
+  const buffer = Buffer.from(await upload.arrayBuffer());
+
+  if (kind === "video") {
+    const saved = await saveFile(buffer, upload);
+    return {
+      ...saved,
+      width: null,
+      height: null,
+      thumbPath: null,
+    };
+  }
+
+  const thumb = await makeImageThumb(buffer);
+  try {
+    const saved = await saveFile(buffer, upload);
+    return { ...saved, ...thumb };
+  } catch (error) {
+    await deleteUploadedFiles([thumb.thumbPath]);
+    throw error;
+  }
 }
 
 export async function deleteUploadedFiles(files: (string | null | undefined)[]) {

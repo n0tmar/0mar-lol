@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PostKind, PostRecord } from "@/lib/db";
+import type { PostKind, PostRecord } from "@/lib/types";
 import { Markdown } from "@/components/markdown";
 import { FileUpload } from "@/components/file-upload";
+import { getPostDownloadFile } from "@/lib/post-download";
+import { normalizePostKind } from "@/lib/post-conversion";
 
 const TOOLS = [
   { label: "B", title: "غامق", before: "**", after: "**" },
@@ -33,12 +35,40 @@ function insertAtCursor(
   textarea.focus();
 }
 
-function Preview({ kind, title, body, mediaUrl, mediaName, addFile, downloadName, idMap }: {
+function kindLabel(kind: PostKind) {
+  return kind === "image" ? "صورة" : kind === "video" ? "فيديو" : "نص";
+}
+
+function conversionMessage(
+  currentKind: PostKind,
+  targetKind: PostKind,
+  keepsDownload: boolean,
+) {
+  const preserved = keepsDownload ? " ملف التحميل الحالي سيبقى محفوظاً." : "";
+  const targetUpload =
+    targetKind === "image" ? "صورة جديدة" : "فيديو جديداً";
+  if (targetKind === "text") {
+    const removal =
+      currentKind === "image"
+        ? "ستُزال الصورة المعروضة"
+        : "سيُزال الفيديو المعروض";
+    return `${removal} فقط بعد نجاح الحفظ، ويتحول المنشور إلى نص.${preserved}`;
+  }
+  if (currentKind === "text") {
+    return `اختر ${targetUpload} لإتمام التحويل.${preserved}`;
+  }
+  const safeRemoval =
+    currentKind === "image"
+      ? "لن تُحذف الصورة الحالية"
+      : "لن يُحذف الفيديو الحالي";
+  return `اختر ${targetUpload}. ${safeRemoval} إلا بعد نجاح الحفظ.${preserved}`;
+}
+
+function Preview({ kind, title, body, mediaUrl, addFile, downloadName, idMap }: {
   kind: PostKind;
   title: string;
   body: string;
   mediaUrl: string | null;
-  mediaName: string | null;
   addFile: boolean;
   downloadName: string | null;
   idMap: Record<string, string>;
@@ -92,12 +122,12 @@ function Preview({ kind, title, body, mediaUrl, mediaName, addFile, downloadName
           )
         )}
 
-        {(kind === "text" || addFile) && (mediaName || downloadName) && (
+        {addFile && downloadName && (
           <span className="file-button" dir="ltr" style={{ pointerEvents: "none" }}>
             <svg className="file-button__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
             </svg>
-            <span className="file-button__name">{downloadName || mediaName || title || "file.ext"}</span>
+            <span className="file-button__name">{downloadName}</span>
             <span className="file-button__meta">File</span>
           </span>
         )}
@@ -113,21 +143,34 @@ function Preview({ kind, title, body, mediaUrl, mediaName, addFile, downloadName
 
 export function PostComposer({ idMap, post }: { idMap: Record<string, string>; post?: PostRecord }) {
   const editing = !!post;
-  const [kind, setKind] = useState<PostKind>(post?.kind ?? "text");
+  const originalKind = post
+    ? (normalizePostKind(post.kind as string) ?? "text")
+    : "text";
+  const originalDownload = post ? getPostDownloadFile(post) : null;
+  const originalVisualName =
+    post && originalKind !== "text" && post.media_path
+      ? post.media_name || post.title
+      : null;
+  const originalVisualUrl =
+    post && originalKind !== "text" && post.media_path
+      ? `/api/media/${post.id}${originalKind === "image" ? "?v=thumb" : ""}`
+      : null;
+  const originalDownloadName = originalDownload?.name ?? null;
+
+  const [kind, setKind] = useState<PostKind>(originalKind);
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
-  const [mediaUrl, setMediaUrl] = useState<string | null>(() =>
-    post?.media_path
-      ? `/api/media/${post.id}${post.kind === "image" ? "?v=thumb" : ""}`
-      : null,
+  const [mediaUrl, setMediaUrl] = useState<string | null>(originalVisualUrl);
+  const [mediaName, setMediaName] = useState<string | null>(originalVisualName);
+  const [addFile, setAddFile] = useState(!!originalDownload);
+  const [downloadName, setDownloadName] = useState<string | null>(
+    originalDownloadName,
   );
-  const [mediaName, setMediaName] = useState<string | null>(post?.media_name ?? null);
-  const [addFile, setAddFile] = useState(post?.has_file === 1);
-  const [downloadName, setDownloadName] = useState<string | null>(post?.file_name ?? null);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaLabel = kind === "image" ? "الصورة" : "الفيديو";
   const accept = kind === "image" ? "image/*" : "video/*";
+  const converting = editing && kind !== originalKind;
 
   // Load drafts only after hydration to avoid SSR/client mismatch.
   useEffect(() => {
@@ -155,6 +198,12 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
     };
   }, [saveDraft, editing]);
 
+  useEffect(() => {
+    return () => {
+      if (mediaUrl?.startsWith("blob:")) URL.revokeObjectURL(mediaUrl);
+    };
+  }, [mediaUrl]);
+
   function handleSubmit() {
     if (!editing) {
       localStorage.removeItem("draft-title");
@@ -162,8 +211,28 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
     }
   }
 
+  function handleKindChange(newKind: PostKind) {
+    setKind(newKind);
+
+    const canReuseVisual =
+      editing && newKind === originalKind && newKind !== "text";
+    setMediaUrl(canReuseVisual ? originalVisualUrl : null);
+    setMediaName(canReuseVisual ? originalVisualName : null);
+
+    // Download input stays mounted and keeps its native File selection:
+    // attachments are independent from visual post kind.
+  }
+
+  function handleAddFileChange(checked: boolean) {
+    setAddFile(checked);
+    if (!checked) {
+      setDownloadName(null);
+    } else if (editing) {
+      setDownloadName(originalDownloadName);
+    }
+  }
+
   function removeMedia() {
-    if (mediaUrl) URL.revokeObjectURL(mediaUrl);
     setMediaUrl(null);
     setMediaName(null);
   }
@@ -177,6 +246,9 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
         encType="multipart/form-data"
         onSubmit={handleSubmit}
       >
+        {editing && (
+          <input type="hidden" name="revision" value={post!.updated_at} />
+        )}
         <div className="form-grid">
           <label className="wide-field">
             <span>العنوان</span>
@@ -193,28 +265,35 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
 
           <div className="composer-kind">
             <span>نوع المنشور</span>
-            {editing && <input type="hidden" name="kind" value={post!.kind} />}
-            <div className="composer-kind__options">
-              {(["text", "image", "video"] as PostKind[]).map((k) => (
-                <label key={k} className={`composer-kind__btn ${kind === k ? "is-active" : ""}`}>
+            <div
+              className="composer-kind__options"
+              aria-describedby={converting ? "post-conversion-note" : undefined}
+            >
+              {(["text", "image", "video"] as PostKind[]).map((option) => (
+                <label
+                  key={option}
+                  className={`composer-kind__btn ${kind === option ? "is-active" : ""}`}
+                >
                   <input
                     type="radio"
                     name="kind"
-                    value={k}
-                    checked={kind === k}
-                    disabled={editing}
-                    onChange={(event) => {
-                      const newKind = event.target.value as PostKind;
-                      setKind(newKind);
-                      if (mediaUrl) { URL.revokeObjectURL(mediaUrl); setMediaUrl(null); setMediaName(null); }
-                    }}
+                    value={option}
+                    checked={kind === option}
+                    onChange={() => handleKindChange(option)}
                   />
-                  <span>
-                    {k === "image" ? "صورة" : k === "video" ? "فيديو" : "نص"}
-                  </span>
+                  <span>{kindLabel(option)}</span>
                 </label>
               ))}
             </div>
+            {converting && (
+              <p
+                id="post-conversion-note"
+                className="composer-conversion-note"
+                role="status"
+              >
+                {conversionMessage(originalKind, kind, !!originalDownload)}
+              </p>
+            )}
           </div>
 
           <div className="composer-toolbar">
@@ -241,7 +320,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
             <textarea
               ref={bodyRef}
               name="body"
-              required={kind === "text"}
+              required={kind === "text" && !addFile}
               maxLength={5000}
               rows={kind === "text" ? 10 : 5}
               placeholder={
@@ -254,26 +333,26 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
             />
           </label>
 
-          {(kind !== "text" || addFile) && (
-            <div className="upload-field wide-field">
+          {kind !== "text" && (
+            <div key="visual-upload" className="upload-field wide-field">
               <FileUpload
+                key={`media-${kind}`}
                 name="media"
-                accept={kind === "text" ? undefined : accept}
-                label={kind === "text" ? "ملف" : mediaLabel}
+                accept={accept}
+                label={mediaLabel}
                 required={!mediaName}
                 file={mediaName ? { name: mediaName, size: 0 } : null}
                 onSelect={(file) => {
-                  if (mediaUrl) URL.revokeObjectURL(mediaUrl);
                   setMediaUrl(URL.createObjectURL(file));
                   setMediaName(file.name);
                 }}
-                onRemove={() => removeMedia()}
+                onRemove={removeMedia}
               />
             </div>
           )}
 
-          {addFile && kind !== "text" && (
-            <div className="upload-field wide-field">
+          {addFile && (
+            <div key="download-upload" className="upload-field wide-field">
               <FileUpload
                 name="file_upload"
                 label="ملف للتحميل"
@@ -293,7 +372,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
                 name="has_file"
                 type="checkbox"
                 checked={addFile}
-                onChange={(event) => setAddFile(event.target.checked)}
+                onChange={(event) => handleAddFileChange(event.target.checked)}
               />
               <span aria-hidden="true" />
               ملف للتحميل
@@ -308,11 +387,13 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
               نشر مباشرة
             </label>
           </div>
-          <button type="submit">{editing ? "حفظ التعديلات" : "نشر الآن"}</button>
+          <button type="submit">
+            {converting ? "تحويل وحفظ" : editing ? "حفظ التعديلات" : "نشر الآن"}
+          </button>
         </div>
       </form>
 
-      <Preview kind={kind} title={title} body={body} mediaUrl={mediaUrl} mediaName={mediaName} addFile={addFile} downloadName={downloadName} idMap={idMap} />
+      <Preview kind={kind} title={title} body={body} mediaUrl={mediaUrl} addFile={addFile} downloadName={downloadName} idMap={idMap} />
     </div>
   );
 }

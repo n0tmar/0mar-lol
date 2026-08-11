@@ -5,6 +5,7 @@ import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import webpush from "web-push";
 
@@ -488,6 +489,41 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.match(finalHtml, /اختبار منشور نصي/);
   assert.match(finalHtml, /اختبار منشور صورة/);
 
+  // Image without a download can become plain text; visual + thumbnail are
+  // removed while post identity stays unchanged.
+  const simpleImageId = finalHtml.match(
+    /<a[^>]+href="\/posts\/([a-f0-9-]+)"[^>]*>اختبار منشور صورة<\/a>/,
+  )?.[1];
+  assert.ok(simpleImageId);
+  const filesBeforePlainText = new Set(
+    readdirSync(path.join(dataDirectory, "uploads")),
+  );
+  const plainTextConversion = new FormData();
+  plainTextConversion.set("kind", "text");
+  plainTextConversion.set("title", "اختبار منشور صورة");
+  plainTextConversion.set("body", "تحول إلى منشور نصي بلا مرفقات.");
+  plainTextConversion.set("published", "on");
+  const convertPlainText = await fetch(
+    `${origin}/api/admin/posts/${simpleImageId}/edit`,
+    {
+      method: "POST",
+      body: plainTextConversion,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    },
+  );
+  assert.equal(convertPlainText.status, 303);
+  const filesAfterPlainText = new Set(
+    readdirSync(path.join(dataDirectory, "uploads")),
+  );
+  assert.equal(filesBeforePlainText.size - filesAfterPlainText.size, 2);
+  const removedPlainVisual = await fetch(`${origin}/api/media/${simpleImageId}`);
+  assert.equal(removedPlainVisual.status, 404);
+  const plainTextHtml = await (
+    await fetch(`${origin}/posts/${simpleImageId}`)
+  ).text();
+  assert.match(plainTextHtml, /post-type-text/);
+
   // Startup orphan cleanup: files no post references are deleted on boot;
   // everything referenced (published or draft) survives a restart.
   const uploadsDir = path.join(dataDirectory, "uploads");
@@ -497,7 +533,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   draftForm.set("body", "مسودة ملفها لازم يبقى.");
   draftForm.set("has_file", "on");
   draftForm.set(
-    "media",
+    "file_upload",
     new Blob([Buffer.from("draft attachment\n")], { type: "text/plain" }),
     "draft.txt",
   );
@@ -511,11 +547,42 @@ test("publishing, likes, downloads, comments and media work together", async (t)
 
   const strayFile = "stray-orphan.bin";
   writeFileSync(path.join(uploadsDir, strayFile), "junk");
+
+  // Simulate production data from the old text-download layout. Startup must
+  // move its media_* metadata to file_* without deleting or changing bytes.
+  const legacyTextId = "00000000-0000-4000-8000-000000000001";
+  const legacyTextFile = "legacy-text-download.zip";
+  const legacyTextBytes = Buffer.from("PK\u0003\u0004legacy-download");
+  writeFileSync(path.join(uploadsDir, legacyTextFile), legacyTextBytes);
+
   const filesBeforeRestart = readdirSync(uploadsDir);
   assert.ok(filesBeforeRestart.includes(strayFile));
+  assert.ok(filesBeforeRestart.includes(legacyTextFile));
 
   server.kill("SIGTERM");
   await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const legacyDatabase = new DatabaseSync(
+    path.join(dataDirectory, "omar-resources.sqlite"),
+  );
+  legacyDatabase
+    .prepare(
+      `INSERT INTO posts
+       (id, kind, title, body, media_path, media_name, media_type, media_size,
+        published, created_at, has_file)
+       VALUES (?, 'text', ?, ?, ?, ?, 'application/zip', ?, 0, ?, 1)`,
+    )
+    .run(
+      legacyTextId,
+      "تنزيل نصي قديم",
+      "اختبار الترحيل",
+      `uploads/${legacyTextFile}`,
+      "legacy.zip",
+      legacyTextBytes.length,
+      Date.now(),
+    );
+  legacyDatabase.close();
+
   server = startServer(dataDirectory);
   await waitForServer();
 
@@ -523,7 +590,32 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.deepEqual(
     filesAfterRestart.sort(),
     filesBeforeRestart.filter((f) => f !== strayFile).sort(),
-    "stray file removed on startup, referenced files kept",
+    "stray file removed on startup, referenced and migrated files kept",
+  );
+
+  const migratedDatabase = new DatabaseSync(
+    path.join(dataDirectory, "omar-resources.sqlite"),
+  );
+  const migratedText = migratedDatabase
+    .prepare(
+      "SELECT media_path, file_path, file_name FROM posts WHERE id = ?",
+    )
+    .get(legacyTextId);
+  migratedDatabase.close();
+  assert.deepEqual({ ...migratedText }, {
+    media_path: null,
+    file_path: `uploads/${legacyTextFile}`,
+    file_name: "legacy.zip",
+  });
+
+  const migratedDownload = await fetch(
+    `${origin}/api/media/${legacyTextId}?download=1`,
+    { headers: { Cookie: adminCookie } },
+  );
+  assert.equal(migratedDownload.status, 200);
+  assert.deepEqual(
+    Buffer.from(await migratedDownload.arrayBuffer()),
+    legacyTextBytes,
   );
 
   // A zip archive posts fine as a text post with a download file.
@@ -534,7 +626,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   zipForm.set("has_file", "on");
   zipForm.set("published", "on");
   zipForm.set(
-    "media",
+    "file_upload",
     new Blob([Buffer.from("PK\u0003\u0004fake-zip")], { type: "application/zip" }),
     "archive.zip",
   );
@@ -582,6 +674,177 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     await fetch(`${origin}/posts/${zipPostId}`)
   ).text();
   assert.match(zipAfterDownload, /1 تنزيل/);
+
+  // Edit UI enables all kinds for existing posts.
+  const zipEditHtml = await (
+    await fetch(`${origin}/dashboard/edit/${zipPostId}`, {
+      headers: { Cookie: adminCookie },
+    })
+  ).text();
+  const kindInputs = [
+    ...zipEditHtml.matchAll(/<input[^>]*name="kind"[^>]*>/g),
+  ].map((match) => match[0]);
+  assert.equal(kindInputs.length, 3);
+  for (const input of kindInputs) assert.doesNotMatch(input, /disabled/);
+  const initialRevision = zipEditHtml.match(
+    /<input[^>]*name="revision"[^>]*value="(\d+)"/,
+  )?.[1];
+  assert.ok(initialRevision, "edit form should carry an optimistic revision");
+
+  function conversionForm(kind, visual) {
+    const form = new FormData();
+    form.set("kind", kind);
+    form.set("title", "ملف مضغوط");
+    form.set("body", "تحميل الأرشيف بعد تحويل النوع.");
+    form.set("has_file", "on");
+    form.set("published", "on");
+    if (visual) form.set("media", visual.blob, visual.name);
+    return form;
+  }
+
+  async function submitConversion(form) {
+    return fetch(`${origin}/api/admin/posts/${zipPostId}/edit`, {
+      method: "POST",
+      body: form,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    });
+  }
+
+  async function assertArchiveStillDownloads() {
+    const response = await fetch(
+      `${origin}/api/media/${zipPostId}?download=1`,
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-disposition") || "", /archive\.zip/);
+    assert.deepEqual(
+      Buffer.from(await response.arrayBuffer()),
+      Buffer.from("PK\u0003\u0004fake-zip"),
+    );
+  }
+
+  const conversionBaseline = new Set(readdirSync(uploadsDir));
+
+  // Text -> video without replacement is rejected. Existing post and file
+  // remain untouched, and the error returns to the same edit screen.
+  const missingVisual = await submitConversion(conversionForm("video"));
+  assert.equal(missingVisual.status, 303);
+  assert.match(
+    missingVisual.headers.get("location") || "",
+    new RegExp(`/dashboard/edit/${zipPostId}\\?error=`),
+  );
+  assert.deepEqual(new Set(readdirSync(uploadsDir)), conversionBaseline);
+  await assertArchiveStillDownloads();
+
+  // Text -> image: add visual media while preserving the ZIP as download.
+  const textToImage = await submitConversion(
+    conversionForm("image", {
+      blob: new Blob([png], { type: "image/png" }),
+      name: "converted-image.png",
+    }),
+  );
+  assert.equal(textToImage.status, 303);
+  const imageMedia = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(imageMedia.status, 200);
+  assert.equal(imageMedia.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await imageMedia.arrayBuffer()), png);
+  await assertArchiveStillDownloads();
+  const afterImage = new Set(readdirSync(uploadsDir));
+  const firstImageFiles = [...afterImage].filter(
+    (file) => !conversionBaseline.has(file),
+  );
+  assert.equal(firstImageFiles.length, 2, "image original + thumbnail added");
+
+  // Stale editor revision loses safely even when it carries a valid upload.
+  // No new bytes survive and current image remains authoritative.
+  const staleVideoForm = conversionForm("video", {
+    blob: new Blob([Buffer.from("stale-video")], { type: "video/mp4" }),
+    name: "stale.mp4",
+  });
+  staleVideoForm.set("revision", initialRevision);
+  const staleConversion = await submitConversion(staleVideoForm);
+  assert.equal(staleConversion.status, 303);
+  assert.deepEqual(new Set(readdirSync(uploadsDir)), afterImage);
+  const imageAfterStaleSave = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(imageAfterStaleSave.headers.get("content-type"), "image/png");
+
+  // Image -> video also requires replacement media; failed conversion does
+  // not remove current image or thumbnail.
+  const imageToVideoMissing = await submitConversion(conversionForm("video"));
+  assert.equal(imageToVideoMissing.status, 303);
+  assert.deepEqual(new Set(readdirSync(uploadsDir)), afterImage);
+  const imageAfterFailure = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(imageAfterFailure.headers.get("content-type"), "image/png");
+
+  const videoBytes = Buffer.from("integration-video-bytes");
+  const imageToVideo = await submitConversion(
+    conversionForm("video", {
+      blob: new Blob([videoBytes], { type: "video/mp4" }),
+      name: "converted-video.mp4",
+    }),
+  );
+  assert.equal(imageToVideo.status, 303);
+  const videoMedia = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(videoMedia.status, 200);
+  assert.equal(videoMedia.headers.get("content-type"), "video/mp4");
+  assert.deepEqual(Buffer.from(await videoMedia.arrayBuffer()), videoBytes);
+  await assertArchiveStillDownloads();
+  const afterVideo = new Set(readdirSync(uploadsDir));
+  for (const oldImage of firstImageFiles) assert.equal(afterVideo.has(oldImage), false);
+  const videoFiles = [...afterVideo].filter(
+    (file) => !conversionBaseline.has(file),
+  );
+  assert.equal(videoFiles.length, 1, "old image files replaced by one video");
+
+  // Video -> image with corrupt image bytes fails after MIME validation but
+  // before commit. New partial files are rolled back; old video remains live.
+  const corruptImage = await submitConversion(
+    conversionForm("image", {
+      blob: new Blob([Buffer.from("not an image")], { type: "image/png" }),
+      name: "broken.png",
+    }),
+  );
+  assert.equal(corruptImage.status, 303);
+  assert.deepEqual(new Set(readdirSync(uploadsDir)), afterVideo);
+  const videoAfterFailure = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(videoAfterFailure.headers.get("content-type"), "video/mp4");
+  assert.deepEqual(
+    Buffer.from(await videoAfterFailure.arrayBuffer()),
+    videoBytes,
+  );
+
+  // Video -> image succeeds with a valid replacement and keeps download.
+  const videoToImage = await submitConversion(
+    conversionForm("image", {
+      blob: new Blob([png], { type: "image/png" }),
+      name: "converted-back.png",
+    }),
+  );
+  assert.equal(videoToImage.status, 303);
+  const imageAgain = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(imageAgain.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await imageAgain.arrayBuffer()), png);
+  await assertArchiveStillDownloads();
+  const afterSecondImage = new Set(readdirSync(uploadsDir));
+  for (const oldVideo of videoFiles) assert.equal(afterSecondImage.has(oldVideo), false);
+  const secondImageFiles = [...afterSecondImage].filter(
+    (file) => !conversionBaseline.has(file),
+  );
+  assert.equal(secondImageFiles.length, 2);
+
+  // Image -> text removes visual + thumbnail only after commit. ZIP remains
+  // downloadable, while the non-download media endpoint correctly disappears.
+  const imageToText = await submitConversion(conversionForm("text"));
+  assert.equal(imageToText.status, 303);
+  assert.deepEqual(new Set(readdirSync(uploadsDir)), conversionBaseline);
+  const removedVisual = await fetch(`${origin}/api/media/${zipPostId}`);
+  assert.equal(removedVisual.status, 404);
+  await assertArchiveStillDownloads();
+  const convertedTextHtml = await (
+    await fetch(`${origin}/posts/${zipPostId}`)
+  ).text();
+  assert.match(convertedTextHtml, /post-type-text/);
+  assert.match(convertedTextHtml, /archive\.zip/);
 
   // Comment throttling explains the exact rule and remaining wait.
   for (let index = 1; index <= 3; index += 1) {

@@ -19,15 +19,15 @@ function post(overrides = {}) {
   };
 }
 
-test("text post files resolve from media fields", () => {
+test("current text post files resolve from canonical file fields", () => {
   assert.deepEqual(
     getPostDownloadFile(
       post({
         has_file: 1,
-        media_path: "uploads/archive.zip",
-        media_name: "archive.zip",
-        media_type: "application/zip",
-        media_size: 1234,
+        file_path: "uploads/archive.zip",
+        file_name: "archive.zip",
+        file_type: "application/zip",
+        file_size: 1234,
       }),
     ),
     {
@@ -39,7 +39,27 @@ test("text post files resolve from media fields", () => {
   );
 });
 
-test("image and video attachments resolve from secondary file fields", () => {
+test("pre-migration text posts still resolve from media fields", () => {
+  assert.deepEqual(
+    getPostDownloadFile(
+      post({
+        has_file: 1,
+        media_path: "uploads/old-archive.zip",
+        media_name: "old-archive.zip",
+        media_type: "application/zip",
+        media_size: 321,
+      }),
+    ),
+    {
+      path: "uploads/old-archive.zip",
+      name: "old-archive.zip",
+      type: "application/zip",
+      size: 321,
+    },
+  );
+});
+
+test("image and video attachments resolve from canonical file fields", () => {
   assert.deepEqual(
     getPostDownloadFile(
       post({
