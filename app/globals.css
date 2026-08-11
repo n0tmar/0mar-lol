@@ -1805,29 +1805,21 @@ main {
 }
 
 .support-tiers {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
 }
 
 .support-tier {
   display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 16px 20px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
   color: var(--ink);
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   transition: border-color 120ms ease, background 120ms ease;
-}
-
-.support-tier__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .support-tier:hover {
@@ -1882,12 +1874,11 @@ main {
 
 .support-tier__qr {
   width: max-content;
-  margin: 0;
+  margin: 10px auto 2px;
   padding: 0;
   display: grid;
   justify-items: center;
   gap: 5px;
-  flex-shrink: 0;
   appearance: none;
   color: var(--muted);
   background: transparent;
@@ -1980,11 +1971,9 @@ main {
 .support-tier__cta {
   min-height: var(--tap-target);
   margin-top: 6px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   display: grid;
   place-items: center;
-  align-self: flex-start;
-  min-width: 132px;
   text-align: center;
   color: var(--accent-ink);
   background: var(--accent);
