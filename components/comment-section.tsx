@@ -210,10 +210,10 @@ function MainForm({
         </label>
       </div>
       <div className="comment-submit-row">
-        <Counter value={body.length} max={MAX_BODY} />
         <button type="submit" disabled={submitting}>
           {submitting ? "جاري الإرسال..." : "إرسال"}
         </button>
+        <Counter value={body.length} max={MAX_BODY} />
       </div>
       {notice && (
         <p className="form-notice" role="status">
