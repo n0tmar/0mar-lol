@@ -191,6 +191,8 @@ function MainForm({
             placeholder="اسمك"
             value={name}
             onChange={(event) => setName(event.target.value)}
+            disabled={!!initialName}
+            title={initialName ? "اسمك محفوظ ولا يمكن تغييره" : undefined}
           />
         </label>
         <label className="comment-body-field">
