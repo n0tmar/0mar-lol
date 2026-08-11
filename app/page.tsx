@@ -10,6 +10,7 @@ import {
 import { Avatar } from "@/components/avatar";
 import { PostFeed } from "@/components/post-feed";
 import { IconPin } from "@/components/icons";
+import { IconDiscord } from "@/components/icons";
 import { VerifiedBadge } from "@/components/verified-badge";
 import type { FeedPost } from "@/lib/types";
 
@@ -92,6 +93,15 @@ export default async function Home() {
               <SupportIcon />
               <span>ادعمني</span>
             </Link>
+            <a
+              className="profile-link profile-link--icon"
+              href="https://discord.gg/3A4WvhymkP"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Discord"
+            >
+              <IconDiscord />
+            </a>
             <a
               className="profile-link profile-link--icon"
               href="https://github.com/n0tmar"
