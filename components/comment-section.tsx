@@ -51,7 +51,7 @@ function CommentItem({
   return (
     <div className="comment-row" id={`comment-${node.id}`}>
       <div className="comment-bubble">
-        <UserAvatar name={node.name} size={32} />
+        <UserAvatar name={node.name} visitorId={node.visitor_id} size={32} />
         <div className="comment-content">
           <div className="comment-meta">
             <strong>{node.name}</strong>
@@ -191,9 +191,11 @@ function MainForm({
             placeholder="اسمك"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            disabled={!!initialName}
+            readOnly={!!initialName}
+            className={initialName ? "comment-name-locked" : undefined}
             title={initialName ? "اسمك محفوظ ولا يمكن تغييره" : undefined}
           />
+          {initialName && <span className="comment-name-hint">اسمك محفوظ</span>}
         </label>
         <label className="comment-body-field">
           <textarea

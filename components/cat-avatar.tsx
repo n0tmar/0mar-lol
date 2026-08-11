@@ -28,9 +28,19 @@ function CatImg({ index, size }: { index: number; size: number }) {
 
 /**
  * Commenter avatar: the site owner always shows their real profile
- * picture; everyone else gets a deterministic cat from the name hash.
+ * picture; everyone else gets a deterministic cat from the visitor
+ * identity (per-browser cookie), so the same user always keeps the
+ * same pfp — even if display names ever change.
  */
-export function UserAvatar({ name, size = 32 }: { name: string; size?: number }) {
+export function UserAvatar({
+  name,
+  visitorId,
+  size = 32,
+}: {
+  name: string;
+  visitorId?: string | null;
+  size?: number;
+}) {
   if (name === OWNER_NAME) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -45,10 +55,6 @@ export function UserAvatar({ name, size = 32 }: { name: string; size?: number })
       />
     );
   }
-  return <CatImg index={hashString(name.trim().toLowerCase()) % CAT_COUNT} size={size} />;
-}
-
-// Kept for compatibility with earlier usage.
-export function CatAvatar({ name, size = 32 }: { name: string; size?: number }) {
-  return <UserAvatar name={name} size={size} />;
+  const seed = (visitorId || name).trim().toLowerCase();
+  return <CatImg index={hashString(seed) % CAT_COUNT} size={size} />;
 }

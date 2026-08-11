@@ -471,7 +471,9 @@ export function addComment(input: {
       .prepare(
         `INSERT INTO visitors (visitor_id, name, updated_at)
          VALUES (?, ?, ?)
-         ON CONFLICT(visitor_id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
+         ON CONFLICT(visitor_id) DO UPDATE SET
+           name = CASE WHEN excluded.name = 'زائر' THEN visitors.name ELSE excluded.name END,
+           updated_at = excluded.updated_at`,
       )
       .run(input.visitorId, input.name, Date.now());
   }

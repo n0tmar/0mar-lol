@@ -1325,6 +1325,18 @@ main {
   gap: 12px;
 }
 
+.comment-name-locked {
+  color: var(--muted-2);
+  cursor: not-allowed;
+}
+
+.comment-name-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
 .comment-counter {
   color: var(--muted-2);
   font-size: 11px;

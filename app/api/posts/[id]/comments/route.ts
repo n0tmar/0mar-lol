@@ -56,7 +56,13 @@ export async function POST(
   if (String(formData.get(HONEYPOT_FIELD) || "").trim() !== "") {
     return NextResponse.json({ message: "تم نشر تعليقك." }, { status: 201 });
   }
-  const name = String(formData.get("name") || "زائر").trim() || "زائر";
+  // Visitor identity: reuse the like cookie, create it if missing.
+  let visitorId = request.cookies.get("omar_visitor_id")?.value;
+  // Locked visitors submit no name field (readOnly input): fall back to the
+  // name saved for this browser before ever defaulting to "زائر".
+  const savedName = visitorId ? getVisitorName(visitorId) : null;
+  const name =
+    String(formData.get("name") || "").trim() || savedName || "زائر";
   const body = String(formData.get("body") || "").trim();
   const parentId = String(formData.get("parent_id") || "").trim() || null;
 
@@ -88,8 +94,6 @@ export async function POST(
     );
   }
 
-  // Visitor identity: reuse the like cookie, create it if missing.
-  let visitorId = request.cookies.get("omar_visitor_id")?.value;
   const response = NextResponse.json({ message: "تم نشر تعليقك." }, { status: 201 });
   if (!visitorId) {
     visitorId = randomUUID();
