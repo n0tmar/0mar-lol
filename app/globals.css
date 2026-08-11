@@ -2982,6 +2982,75 @@ main {
 }
 
 /* =====================================================================
+   404
+   ===================================================================== */
+
+.notfound-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.notfound-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 340px);
+  text-align: center;
+}
+
+.notfound-cat {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--line-strong);
+  background: var(--bg-soft);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.notfound-code {
+  margin: 12px 0 0;
+  font: 700 56px/1 inherit;
+  color: var(--accent);
+  letter-spacing: 3px;
+}
+
+.notfound-title {
+  margin: 0;
+  font: 600 20px/1.3 inherit;
+  color: var(--ink);
+}
+
+.notfound-subtitle {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.notfound-home {
+  min-height: var(--tap-target);
+  padding-inline: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.notfound-home:hover {
+  background: var(--accent-hover);
+}
+
+/* =====================================================================
    Responsive
    ===================================================================== */
 

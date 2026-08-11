@@ -115,6 +115,11 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(serviceWorker.headers.get("service-worker-allowed"), "/");
   assert.match(await serviceWorker.text(), /notificationclick/);
 
+  // Custom 404 page for unmatched routes.
+  const notFound = await fetch(`${origin}/no-such-page`);
+  assert.equal(notFound.status, 404);
+  assert.match(await notFound.text(), /الصفحة غير موجودة/);
+
   // Admin area is protected.
   const protectedDashboard = await fetch(`${origin}/dashboard`, {
     redirect: "manual",
