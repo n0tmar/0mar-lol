@@ -23,9 +23,9 @@ export default function NotFound() {
         </p>
         <h1 className="notfound-title">الصفحة غير موجودة</h1>
         <p className="notfound-subtitle">
-          الرابط اللي دخلته غلط، أو الصفحة اتشالت.
+          الرابط اللي دخلته غلط، أو الصفحة انحذفت.
           <br />
-          القطة ضاعت، بس الموقع لسّه شغال.
+          القطوة ضاعت، بس الموقع باقي شغال.
         </p>
         <Link className="notfound-home" href="/">
           ← الرجوع للرئيسية
