@@ -72,7 +72,7 @@ export default async function Home() {
             fetchPriority="high"
           />
           <h1>
-            mar
+            <span className="profile-name">mar</span>
             <VerifiedBadge />
           </h1>
           <p className="profile-bio">

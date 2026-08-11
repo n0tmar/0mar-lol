@@ -224,6 +224,14 @@ main {
   gap: 8px;
 }
 
+/* Collapse the name's line box to the glyph box so flex centering aligns
+   the badge with the text's optical middle, not the empty space above it
+   (Arabic glyphs sit low in the em box). */
+.profile-name {
+  display: inline-block;
+  line-height: 1;
+}
+
 .verified-badge {
   display: inline-block;
   flex-shrink: 0;
