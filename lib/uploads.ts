@@ -1,9 +1,9 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { getDataDirectory } from "@/lib/db";
+import { getDataDirectory, getDatabase } from "@/lib/db";
 import sharp from "sharp";
 
 export async function saveFile(buffer: Buffer, upload: File) {
@@ -56,4 +56,59 @@ export async function deleteUploadedFiles(files: (string | null | undefined)[]) 
       .filter((file): file is string => !!file?.startsWith("uploads/"))
       .map((file) => unlink(path.join(uploadsDir, file)).catch(() => {})),
   );
+}
+
+/**
+ * Remove files in uploads/ that no post references (deleted posts, manual
+ * DB edits, failed publishes). Runs once at server startup, before the
+ * server accepts requests, so no in-flight upload can be touched.
+ *
+ * Drafts count: an unpublished post still references its files, and those
+ * must survive. Only files under uploads/ are considered — public/ assets
+ * are never touched.
+ */
+export async function cleanupOrphanedUploads(): Promise<number> {
+  const uploadsDir = path.join(getDataDirectory(), "uploads");
+  let entries;
+  try {
+    entries = await readdir(uploadsDir, { withFileTypes: true });
+  } catch {
+    return 0; // no uploads directory yet
+  }
+
+  const rows = getDatabase()
+    .prepare("SELECT media_path, thumb_path, file_path FROM posts")
+    .all() as {
+    media_path: string | null;
+    thumb_path: string | null;
+    file_path: string | null;
+  }[];
+  const referenced = new Set<string>();
+  for (const row of rows) {
+    for (const value of [row.media_path, row.thumb_path, row.file_path]) {
+      if (value?.startsWith("uploads/")) {
+        referenced.add(value.slice("uploads/".length));
+      }
+    }
+  }
+
+  let removed = 0;
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && !referenced.has(entry.name))
+      .map(async (entry) => {
+        try {
+          await unlink(path.join(uploadsDir, entry.name));
+          removed += 1;
+        } catch {
+          // Best effort — a file that cannot be unlinked is left for the
+          // next startup rather than crashing the server.
+        }
+      }),
+  );
+
+  if (removed > 0) {
+    console.log(`[uploads] removed ${removed} orphaned file(s) at startup.`);
+  }
+  return removed;
 }

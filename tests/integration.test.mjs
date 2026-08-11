@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createECDH, randomBytes } from "node:crypto";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -54,23 +54,8 @@ function fetchWithHost(pathname, { host, cookie, method = "GET", body, contentTy
   });
 }
 
-async function waitForServer() {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    try {
-      const response = await fetch(`${origin}/api/health`);
-      if (response.ok) return;
-    } catch {
-      // Server is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error("Test server did not become healthy.");
-}
-
-test("publishing, likes, downloads, comments and media work together", async (t) => {
-  // Fresh empty data directory — the site must work from zero.
-  const dataDirectory = mkdtempSync(path.join(tmpdir(), "omar-site-test-"));
-  const server = spawn(
+function startServer(dataDirectory) {
+  return spawn(
     process.execPath,
     [
       "node_modules/next/dist/bin/next",
@@ -96,6 +81,25 @@ test("publishing, likes, downloads, comments and media work together", async (t)
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
+}
+
+async function waitForServer() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(`${origin}/api/health`);
+      if (response.ok) return;
+    } catch {
+      // Server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("Test server did not become healthy.");
+}
+
+test("publishing, likes, downloads, comments and media work together", async (t) => {
+  // Fresh empty data directory — the site must work from zero.
+  const dataDirectory = mkdtempSync(path.join(tmpdir(), "omar-site-test-"));
+  let server = startServer(dataDirectory);
   t.after(() => server.kill("SIGTERM"));
   await waitForServer();
 
@@ -447,6 +451,44 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   const finalHtml = await (await fetch(origin)).text();
   assert.match(finalHtml, /اختبار منشور نصي/);
   assert.match(finalHtml, /اختبار منشور صورة/);
+
+  // Startup orphan cleanup: files no post references are deleted on boot;
+  // everything referenced (published or draft) survives a restart.
+  const uploadsDir = path.join(dataDirectory, "uploads");
+  const draftForm = new FormData();
+  draftForm.set("kind", "text");
+  draftForm.set("title", "مسودة بحاجة حفظ");
+  draftForm.set("body", "مسودة ملفها لازم يبقى.");
+  draftForm.set("has_file", "on");
+  draftForm.set(
+    "media",
+    new Blob([Buffer.from("draft attachment\n")], { type: "text/plain" }),
+    "draft.txt",
+  );
+  const createDraft = await fetch(`${origin}/api/admin/posts`, {
+    method: "POST",
+    body: draftForm,
+    redirect: "manual",
+    headers: { Cookie: adminCookie, Origin: origin },
+  });
+  assert.equal(createDraft.status, 303);
+
+  const strayFile = "stray-orphan.bin";
+  writeFileSync(path.join(uploadsDir, strayFile), "junk");
+  const filesBeforeRestart = readdirSync(uploadsDir);
+  assert.ok(filesBeforeRestart.includes(strayFile));
+
+  server.kill("SIGTERM");
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  server = startServer(dataDirectory);
+  await waitForServer();
+
+  const filesAfterRestart = readdirSync(uploadsDir);
+  assert.deepEqual(
+    filesAfterRestart.sort(),
+    filesBeforeRestart.filter((f) => f !== strayFile).sort(),
+    "stray file removed on startup, referenced files kept",
+  );
 
   // Comment throttling explains the exact rule and remaining wait.
   for (let index = 1; index <= 3; index += 1) {
