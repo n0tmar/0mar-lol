@@ -122,6 +122,15 @@ export function PostDetail({
     setCommentsOpen(false);
   }
 
+  // Arriving via the feed's comment icon (?comments=1): open the sheet
+  // immediately instead of requiring a second click.
+  useEffect(() => {
+    if (window.location.search.includes("comments=1")) {
+      openComments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Escape closes the sheet; scroll lock while open.
   useEffect(() => {
     if (!commentsOpen) return;

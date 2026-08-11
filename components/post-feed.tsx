@@ -224,7 +224,7 @@ function PostCard({ post, idMap, lazy }: { post: FeedPost; idMap: Record<string,
           busy={likeBusy}
         />
         <Link
-          href={`/posts/${post.id}`}
+          href={`/posts/${post.id}?comments=1`}
           className="comment-toggle"
           aria-label="التعليقات"
         >
