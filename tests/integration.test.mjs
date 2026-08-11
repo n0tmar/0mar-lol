@@ -117,7 +117,11 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(serviceWorker.status, 200);
   assert.match(serviceWorker.headers.get("cache-control") || "", /no-store/);
   assert.equal(serviceWorker.headers.get("service-worker-allowed"), "/");
-  assert.match(await serviceWorker.text(), /notificationclick/);
+  const swSource = await serviceWorker.text();
+  assert.match(swSource, /notificationclick/);
+  // RSC payloads must never be cached — cached copies made client
+  // navigations show stale content until a full refresh.
+  assert.match(swSource, /RSC/);
 
   // Custom 404 page for unmatched routes.
   const notFound = await fetch(`${origin}/no-such-page`);

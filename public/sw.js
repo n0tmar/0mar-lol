@@ -82,8 +82,18 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Never cache APIs, cross-origin requests, or authenticated dashboard HTML.
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+  // Never cache APIs, cross-origin requests, authenticated dashboard HTML,
+  // or framework RSC payloads. RSC payloads drive client navigations —
+  // serving a cached copy is what made pages look stale until a full
+  // refresh. They must always go straight to the network.
+  if (
+    request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith("/api/") ||
+    request.headers.get("RSC") === "1" ||
+    request.headers.get("Next-Router-Prefetch") === "1" ||
+    url.searchParams.has("_rsc")
+  ) {
     return;
   }
   if (url.pathname.startsWith("/dashboard")) {
