@@ -5,6 +5,7 @@ import { formatAbsoluteDate, formatRelativeDate } from "@/lib/format";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { IconReply, IconTrash } from "@/components/icons";
 import { UserAvatar } from "@/components/cat-avatar";
+import { VerifiedBadge } from "@/components/verified-badge";
 import { OWNER_NAME } from "@/lib/constants";
 
 export type DashComment = {
@@ -42,6 +43,7 @@ export function DashCommentCard({ comment }: { comment: DashComment }) {
       <div className="dash-comment-card__head">
         <UserAvatar name={comment.name} size={32} />
         <strong className="dash-comment-card__name">{comment.name}</strong>
+        {comment.name === OWNER_NAME && <VerifiedBadge size={13} />}
         <span
           className="dash-comment-card__date"
           title={formatAbsoluteDate(comment.created_at)}
@@ -80,6 +82,7 @@ export function DashCommentCard({ comment }: { comment: DashComment }) {
               <div className="dash-comment-card__head">
                 <UserAvatar name={child.name} size={26} />
                 <strong className="dash-comment-card__name">{child.name}</strong>
+                {child.name === OWNER_NAME && <VerifiedBadge size={13} />}
                 <span
                   className="dash-comment-card__date"
                   title={formatAbsoluteDate(child.created_at)}

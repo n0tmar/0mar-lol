@@ -7,6 +7,7 @@ import { formatAbsoluteDate, formatRelativeDate } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { UserAvatar } from "@/components/cat-avatar";
 import { IconReply } from "@/components/icons";
+import { VerifiedBadge } from "@/components/verified-badge";
 import { OWNER_NAME } from "@/lib/constants";
 
 const MAX_VISIBLE_REPLIES = 3;
@@ -53,6 +54,7 @@ function CommentItem({
         <div className="comment-content">
           <div className="comment-meta">
             <strong>{node.name}</strong>
+            {node.name === OWNER_NAME && <VerifiedBadge size={13} />}
             {node.parent_name && (
               <button
                 type="button"

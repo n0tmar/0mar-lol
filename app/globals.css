@@ -231,9 +231,15 @@ main {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--verified, #1d9bf0);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(29, 155, 240, 0.4);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 2px 8px rgba(212, 130, 90, 0.45);
+}
+
+.comment-meta .verified-badge,
+.dash-comment-card__head .verified-badge {
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .profile-bio {

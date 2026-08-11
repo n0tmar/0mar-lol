@@ -9,7 +9,8 @@ import {
 } from "@/lib/db";
 import { Avatar } from "@/components/avatar";
 import { PostFeed } from "@/components/post-feed";
-import { IconPin, IconVerified } from "@/components/icons";
+import { IconPin } from "@/components/icons";
+import { VerifiedBadge } from "@/components/verified-badge";
 import type { FeedPost } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -72,13 +73,7 @@ export default async function Home() {
           />
           <h1>
             mar
-            <span
-              className="verified-badge"
-              title="حساب موثق"
-              aria-label="حساب موثق"
-            >
-              <IconVerified size={17} />
-            </span>
+            <VerifiedBadge />
           </h1>
           <p className="profile-bio">
             <span>
