@@ -46,16 +46,26 @@ export default function SupportPage() {
                 key={tier.id}
                 className={`support-tier ${index === 0 ? "support-tier--featured" : ""}`}
               >
-                <div className="support-tier__head">
-                  <span className="support-tier__name">{tier.name}</span>
-                  <span className="support-tier__en">{tier.en}</span>
+                <div className="support-tier__info">
+                  <div className="support-tier__head">
+                    <span className="support-tier__name">{tier.name}</span>
+                    <span className="support-tier__en">{tier.en}</span>
+                  </div>
+                  <p className="support-tier__desc">{tier.desc}</p>
+                  <div className="support-tier__price">
+                    <strong>{formatPrice(tier.sar)}</strong>
+                    <span className="riyal-symbol" aria-hidden="true" />
+                  </div>
+                  <span className="support-tier__usd">≈ ${tier.usd}</span>
+                  <a
+                    className="support-tier__cta"
+                    href={tier.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    ساندني
+                  </a>
                 </div>
-                <p className="support-tier__desc">{tier.desc}</p>
-                <div className="support-tier__price">
-                  <strong>{formatPrice(tier.sar)}</strong>
-                  <span className="riyal-symbol" aria-hidden="true" />
-                </div>
-                <span className="support-tier__usd">≈ ${tier.usd}</span>
 
                 <button
                   className="support-tier__qr"
@@ -67,8 +77,8 @@ export default function SupportPage() {
                     <Image
                       className="support-tier__qr-image"
                       src={qrPath}
-                      width={120}
-                      height={120}
+                      width={96}
+                      height={96}
                       alt=""
                       unoptimized
                     />
@@ -77,15 +87,6 @@ export default function SupportPage() {
                     امسح للدفع بالجوال
                   </span>
                 </button>
-
-                <a
-                  className="support-tier__cta"
-                  href={tier.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  ساندني
-                </a>
 
                 <div
                   id={popoverId}
