@@ -44,5 +44,4 @@ export type FeedPost = PostRecord & {
   like_count: number;
   liked: boolean;
   /** True when the creator replied to one of this visitor's comments. */
-  hasCreatorReply?: boolean;
 };

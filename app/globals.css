@@ -383,23 +383,6 @@ main {
   font-size: 12px;
 }
 
-.creator-reply-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font: 500 11px/1.4 inherit;
-  white-space: nowrap;
-}
-
-.creator-reply-badge svg {
-  flex: none;
-}
-
 .feed-load-more {
   display: flex;
   justify-content: center;

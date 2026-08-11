@@ -7,7 +7,7 @@ import type { FeedPost } from "@/lib/types";
 import { formatRelativeDate } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { Markdown } from "@/components/markdown";
-import { IconFile, IconImage, IconReply, IconText, IconVideo } from "@/components/icons";
+import { IconFile, IconImage, IconText, IconVideo } from "@/components/icons";
 
 const VideoPlayer = dynamic(() =>
   import("@/components/video-player").then((m) => m.VideoPlayer),
@@ -119,11 +119,6 @@ function PostCard({ post, idMap, lazy }: { post: FeedPost; idMap: Record<string,
         >
           <TypeIcon kind={post.kind} />
         </span>
-        {post.hasCreatorReply && (
-          <span className="creator-reply-badge" title="رد على تعليقك">
-            <IconReply size={11} />
-          </span>
-        )}
       </div>
 
       <div className="post-copy">

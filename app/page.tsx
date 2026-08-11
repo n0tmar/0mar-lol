@@ -41,11 +41,7 @@ export default async function Home() {
   const pinnedPosts = listPinnedPosts();
   const feedPosts = listFeedPosts();
   const total = countPublishedPosts();
-  const repliedPostIds = new Set(
-    visitorId ? getVisitorReplyNotifications(visitorId) : [],
-  );
-
-  const attachLikeStates = (posts: (typeof feedPosts)): FeedPost[] => {
+    const attachLikeStates = (posts: (typeof feedPosts)): FeedPost[] => {
     const likeStates = getLikeStates(
       posts.map((post) => post.id),
       visitorId,
@@ -61,11 +57,9 @@ export default async function Home() {
   };
   const pinned = attachLikeStates(pinnedPosts).map((post) => ({
     ...post,
-    hasCreatorReply: repliedPostIds.has(post.id),
   }));
   const rest = attachLikeStates(feedPosts).map((post) => ({
     ...post,
-    hasCreatorReply: repliedPostIds.has(post.id),
   }));
 
   const idMap = getPostTitleMap();

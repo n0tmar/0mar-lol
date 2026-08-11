@@ -55,16 +55,6 @@ function CommentItem({
         <div className="comment-content">
           <div className="comment-meta">
             <strong>{node.name}</strong>
-            {node.name === OWNER_NAME &&
-              node.parent_visitor_id &&
-              node.parent_visitor_id === visitorId && (
-                <span
-                  className="creator-reply-badge"
-                  title="رد من صاحب الموقع"
-                >
-                  <IconReply size={11} />
-                </span>
-              )}
             {node.parent_name && (
               <button
                 type="button"
