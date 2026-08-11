@@ -9,7 +9,7 @@ import {
 } from "@/lib/db";
 import { Avatar } from "@/components/avatar";
 import { PostFeed } from "@/components/post-feed";
-import { IconPin } from "@/components/icons";
+import { IconPin, IconVerified } from "@/components/icons";
 import type { FeedPost } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,16 @@ export default async function Home() {
             alt="صورة عمر"
             fetchPriority="high"
           />
-          <h1>mar</h1>
+          <h1>
+            mar
+            <span
+              className="verified-badge"
+              title="حساب موثق"
+              aria-label="حساب موثق"
+            >
+              <IconVerified size={17} />
+            </span>
+          </h1>
           <p className="profile-bio">
             <span>
               أهلاً، أنا <strong>عمر</strong>، مهتم بالتقنية والألعاب
