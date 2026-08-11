@@ -2,7 +2,12 @@ import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderSVG } from "uqr";
-import { SUPPORT_TIERS, supportQrPath } from "../lib/support-tiers.ts";
+import {
+  SUPPORT_QR_BACKGROUND,
+  SUPPORT_QR_FOREGROUND,
+  SUPPORT_TIERS,
+  supportQrPath,
+} from "../lib/support-tiers.ts";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDirectory = resolve(projectRoot, "public/qr");
@@ -19,8 +24,8 @@ for (const tier of SUPPORT_TIERS) {
     boostEcc: true,
     border: 4,
     pixelSize: 1,
-    blackColor: "#101014",
-    whiteColor: "#ffffff",
+    blackColor: SUPPORT_QR_FOREGROUND,
+    whiteColor: SUPPORT_QR_BACKGROUND,
   }).replace("<svg ", '<svg shape-rendering="crispEdges" ');
 
   await writeFile(resolve(outputDirectory, filename), `${svg}\n`, "utf8");

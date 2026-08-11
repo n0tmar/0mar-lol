@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 
 // Payment links (Ziina) — order: Supporter → Sponsor.
 // Displayed prices are SAR; links charge in AED (Ziina).
+export const SUPPORT_QR_FOREGROUND = "#d4825a";
+export const SUPPORT_QR_BACKGROUND = "#ffffff";
+const SUPPORT_QR_STYLE_VERSION = "orange-minimal-v1";
+
 export const SUPPORT_TIERS = [
   {
     id: "supporter",
@@ -51,8 +55,18 @@ export const SUPPORT_TIERS = [
 ] as const;
 
 export function supportQrPath(tier: (typeof SUPPORT_TIERS)[number]) {
-  // URL-derived filename prevents stale service-worker/browser QR caches when
-  // a payment link changes.
-  const version = createHash("sha256").update(tier.url).digest("hex").slice(0, 12);
+  // URL + style-derived filename prevents stale service-worker/browser QR
+  // caches when either payment destination or QR palette changes.
+  const version = createHash("sha256")
+    .update(
+      [
+        tier.url,
+        SUPPORT_QR_STYLE_VERSION,
+        SUPPORT_QR_FOREGROUND,
+        SUPPORT_QR_BACKGROUND,
+      ].join("|"),
+    )
+    .digest("hex")
+    .slice(0, 12);
   return `/qr/support-${tier.id}-${version}.svg`;
 }

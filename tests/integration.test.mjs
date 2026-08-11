@@ -124,8 +124,8 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   // navigations show stale content until a full refresh.
   assert.match(swSource, /RSC/);
 
-  // Desktop support cards expose one locally hosted QR per exact payment
-  // link. Hashed assets can be cached forever without stale payment URLs.
+  // Desktop support cards expose one local orange QR per exact payment link,
+  // plus a native no-JS popover using the same cached asset.
   const supportResponse = await fetch(`${origin}/support`);
   assert.equal(supportResponse.status, 200);
   const supportHtml = await supportResponse.text();
@@ -139,11 +139,17 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   for (const paymentLink of paymentLinks) {
     assert.ok(supportHtml.includes(`href="${paymentLink}"`));
   }
-  const qrPaths = [
+  assert.doesNotMatch(
+    supportHtml,
+    /على الكمبيوتر؟ امسح رمز الباقة بكاميرا جوالك/,
+  );
+  assert.match(supportHtml, /support-qr-popover/);
+  const renderedQrPaths = [
     ...supportHtml.matchAll(/src="(\/qr\/support-[^"]+\.svg)"/g),
   ].map((match) => match[1]);
+  assert.equal(renderedQrPaths.length, paymentLinks.length * 2);
+  const qrPaths = [...new Set(renderedQrPaths)];
   assert.equal(qrPaths.length, paymentLinks.length);
-  assert.equal(new Set(qrPaths).size, paymentLinks.length);
   for (const qrPath of qrPaths) {
     const qrResponse = await fetch(`${origin}${qrPath}`);
     assert.equal(qrResponse.status, 200);
@@ -152,7 +158,9 @@ test("publishing, likes, downloads, comments and media work together", async (t)
       qrResponse.headers.get("cache-control") || "",
       /max-age=31536000, immutable/,
     );
-    assert.match(await qrResponse.text(), /<svg shape-rendering="crispEdges"/);
+    const qrSvg = await qrResponse.text();
+    assert.match(qrSvg, /<svg shape-rendering="crispEdges"/);
+    assert.match(qrSvg, /fill="#d4825a"/);
   }
 
   // Custom 404 page for unmatched routes.
