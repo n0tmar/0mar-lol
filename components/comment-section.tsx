@@ -54,7 +54,7 @@ function CommentItem({
         <div className="comment-content">
           <div className="comment-meta">
             <strong>{node.name}</strong>
-            {node.name === OWNER_NAME && <VerifiedBadge size={14} />}
+            {node.name === OWNER_NAME && <VerifiedBadge size={15} />}
             {node.parent_name && (
               <button
                 type="button"

@@ -43,7 +43,7 @@ export function DashCommentCard({ comment }: { comment: DashComment }) {
       <div className="dash-comment-card__head">
         <UserAvatar name={comment.name} size={32} />
         <strong className="dash-comment-card__name">{comment.name}</strong>
-        {comment.name === OWNER_NAME && <VerifiedBadge size={14} />}
+        {comment.name === OWNER_NAME && <VerifiedBadge size={15} />}
         <span
           className="dash-comment-card__date"
           title={formatAbsoluteDate(comment.created_at)}
@@ -82,7 +82,7 @@ export function DashCommentCard({ comment }: { comment: DashComment }) {
               <div className="dash-comment-card__head">
                 <UserAvatar name={child.name} size={26} />
                 <strong className="dash-comment-card__name">{child.name}</strong>
-                {child.name === OWNER_NAME && <VerifiedBadge size={14} />}
+                {child.name === OWNER_NAME && <VerifiedBadge size={15} />}
                 <span
                   className="dash-comment-card__date"
                   title={formatAbsoluteDate(child.created_at)}

@@ -1,5 +1,5 @@
 /** Verified badge — orange check icon, shown next to the owner's name. */
-export function VerifiedBadge({ size = 18 }: { size?: number }) {
+export function VerifiedBadge({ size = 20 }: { size?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
