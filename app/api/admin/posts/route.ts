@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
   const hasFile = formData.get("has_file") === "on";
   const upload = formData.get("media");
   const fileUpload = formData.get("file_upload");
+  const mediaUpload =
+    upload instanceof File && upload.size > 0 ? upload : null;
+  const downloadUpload =
+    fileUpload instanceof File && fileUpload.size > 0 ? fileUpload : null;
+  const needsMedia = kind !== "text" || hasFile;
 
   if (!validKinds.has(kind) || title.length < 2 || title.length > 120)
     return fail(request, "تحقق من نوع المنشور والعنوان.");
@@ -39,6 +44,18 @@ export async function POST(request: NextRequest) {
     return fail(request, "النص أطول من الحد المسموح.");
   if (kind === "text" && !hasFile && body.length < 2)
     return fail(request, "أضف نص المنشور.");
+  if (needsMedia && !mediaUpload)
+    return fail(request, "اختر ملفاً للمنشور.");
+  if (mediaUpload && mediaUpload.size > maxUploadSize)
+    return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
+  if (mediaUpload && kind === "image" && !mediaUpload.type.startsWith("image/"))
+    return fail(request, "الملف المختار ليس صورة.");
+  if (mediaUpload && kind === "video" && !mediaUpload.type.startsWith("video/"))
+    return fail(request, "الملف المختار ليس فيديو.");
+  if (hasFile && kind !== "text" && !downloadUpload)
+    return fail(request, "اختر ملف التحميل.");
+  if (downloadUpload && downloadUpload.size > maxUploadSize)
+    return fail(request, "حجم ملف التحميل أكبر من 100 ميجابايت.");
 
   // media upload (image/video, or text file)
   let mediaPath: string | null = null,
@@ -49,17 +66,8 @@ export async function POST(request: NextRequest) {
     height: number | null = null,
     thumbPath: string | null = null;
 
-  if (kind !== "text" || hasFile) {
-    if (!(upload instanceof File) || upload.size === 0)
-      return fail(request, "اختر ملفاً للمنشور.");
-    if (upload.size > maxUploadSize)
-      return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
-    if (kind === "image" && !upload.type.startsWith("image/"))
-      return fail(request, "الملف المختار ليس صورة.");
-    if (kind === "video" && !upload.type.startsWith("video/"))
-      return fail(request, "الملف المختار ليس فيديو.");
-
-    const buffer = Buffer.from(await upload.arrayBuffer());
+  if (needsMedia && mediaUpload) {
+    const buffer = Buffer.from(await mediaUpload.arrayBuffer());
     if (kind === "image") {
       try {
         const thumb = await makeImageThumb(buffer);
@@ -70,7 +78,7 @@ export async function POST(request: NextRequest) {
         return fail(request, "تعذر معالجة الصورة. تأكد أنها صورة سليمة.");
       }
     }
-    const saved = await saveFile(buffer, upload);
+    const saved = await saveFile(buffer, mediaUpload);
     mediaPath = saved.path;
     mediaName = saved.name;
     mediaType = saved.type;
@@ -83,11 +91,9 @@ export async function POST(request: NextRequest) {
     fileType: string | null = null,
     fileSize: number | null = null;
 
-  if (hasFile && kind !== "text" && fileUpload instanceof File && fileUpload.size > 0) {
-    if (fileUpload.size > maxUploadSize)
-      return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
-    const buffer = Buffer.from(await fileUpload.arrayBuffer());
-    const saved = await saveFile(buffer, fileUpload);
+  if (hasFile && kind !== "text" && downloadUpload) {
+    const buffer = Buffer.from(await downloadUpload.arrayBuffer());
+    const saved = await saveFile(buffer, downloadUpload);
     filePath = saved.path;
     fileName = saved.name;
     fileType = saved.type;

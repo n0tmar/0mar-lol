@@ -7,6 +7,7 @@ import type { FeedPost } from "@/lib/types";
 import { formatRelativeDate } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { Markdown } from "@/components/markdown";
+import { PostDownloadButton } from "@/components/post-download-button";
 import { IconFile, IconImage, IconText, IconVideo } from "@/components/icons";
 
 const VideoPlayer = dynamic(() =>
@@ -14,12 +15,6 @@ const VideoPlayer = dynamic(() =>
 );
 
 const FEED_PAGE_SIZE = 15;
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function formatCount(value: number) {
   if (value < 10000) return String(value);
@@ -157,24 +152,6 @@ function PostCard({
         </Link>
       )}
 
-      {post.kind === "image" && post.has_file === 1 && post.media_path && (
-        <a className="file-button" href={`/api/media/${post.id}?download=1`} download dir="ltr">
-          <svg className="file-button__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
-          </svg>
-          <span className="file-button__name">{post.file_name || post.media_name || post.title}</span>
-          <span className="file-button__meta">
-            {post.file_size ? formatFileSize(post.file_size) : post.media_size ? formatFileSize(post.media_size) : "File"}
-            {post.download_count > 0 ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                <span>{formatCount(post.download_count)} تنزيل</span>
-              </>
-            ) : null}
-          </span>
-        </a>
-      )}
-
       {post.kind === "video" && post.media_path && (
         <VideoPlayer
           src={`/api/media/${post.id}`}
@@ -182,52 +159,7 @@ function PostCard({
         />
       )}
 
-      {post.kind === "video" && post.has_file === 1 && post.media_path && (
-        <a className="file-button" href={`/api/media/${post.id}?download=1`} download dir="ltr">
-          <svg className="file-button__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
-          </svg>
-          <span className="file-button__name">{post.file_name || post.media_name || post.title}</span>
-          <span className="file-button__meta">
-            {post.file_size ? formatFileSize(post.file_size) : post.media_size ? formatFileSize(post.media_size) : "File"}
-            {post.download_count > 0 ? (<><span aria-hidden="true"> · </span><span>{formatCount(post.download_count)} تنزيل</span></>) : null}
-          </span>
-        </a>
-      )}
-
-      {(post.kind as string) === "file" && post.media_path && (
-        <a
-          className="file-button"
-          href={`/api/media/${post.id}?download=1`}
-          download
-          dir="ltr"
-        >
-          <svg
-            className="file-button__icon"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
-          </svg>
-          <span className="file-button__name">
-            {post.media_name || post.title}
-          </span>
-          <span className="file-button__meta">
-            {post.media_size ? formatFileSize(post.media_size) : "File"}
-            {post.download_count > 0 ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                <span>{formatCount(post.download_count)} تنزيل</span>
-              </>
-            ) : null}
-          </span>
-        </a>
-      )}
+      <PostDownloadButton post={post} />
 
       <div className="post-footer">
         <LikeButton

@@ -7,6 +7,7 @@ import { formatRelativeDate } from "@/lib/format";
 import { Markdown } from "@/components/markdown";
 import { CopyId } from "@/components/copy-id";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { PostDownloadButton } from "@/components/post-download-button";
 import { IconComment, IconDownload, IconEdit, IconEye, IconEyeOff, IconFile, IconHeart, IconImage, IconPin, IconText, IconTrash, IconVideo } from "@/components/icons";
 
 type DashPost = PostRecord;
@@ -23,12 +24,6 @@ function TypeIcon({ kind }: { kind: string }) {
   if (kind === "video") return <IconVideo size={13} />;
   if ((kind as string) === "file") return <IconFile size={13} />;
   return <IconText size={13} />;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function PostPreview({ post, idMap }: { post: DashPost; idMap: Record<string, string> }) {
@@ -65,19 +60,7 @@ function PostPreview({ post, idMap }: { post: DashPost; idMap: Record<string, st
             <video src={`/api/media/${post.id}`} controls preload="metadata" playsInline style={{ width: "100%", maxHeight: 320 }} />
           </div>
         )}
-        {((post.kind as string) === "file" || (post.kind !== "text" && post.has_file === 1)) && (
-          <a className="file-button" href={`/api/media/${post.id}?download=1`} download dir="ltr">
-            <svg className="file-button__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></svg>
-            <span className="file-button__name">
-              {(post.kind as string) === "file" ? post.media_name || post.title : post.file_name || post.media_name || post.title}
-            </span>
-            <span className="file-button__meta">
-              {(post.kind as string) === "file"
-                ? post.media_size ? formatFileSize(post.media_size) : "File"
-                : post.file_size ? formatFileSize(post.file_size) : "File"}
-            </span>
-          </a>
-        )}
+        <PostDownloadButton post={post} />
         <div className="post-footer">
           <span className="like-button" style={{ color: "var(--muted)", fontSize: 12 }}>
             <IconHeart size={14} /> {post.like_count}

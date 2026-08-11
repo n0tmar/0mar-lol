@@ -515,6 +515,43 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   });
   assert.equal(createZip.status, 303);
 
+  // End-to-end: feed + detail render the button, media route returns the
+  // exact archive, and a text-file download increments its counter.
+  const zipFeedHtml = await (await fetch(origin)).text();
+  const zipPostId = zipFeedHtml.match(
+    /<a[^>]+href="\/posts\/([a-f0-9-]+)"[^>]*>ملف مضغوط<\/a>/,
+  )?.[1];
+  assert.ok(zipPostId, "zip post should appear on the feed");
+  assert.match(zipFeedHtml, /archive\.zip/);
+  assert.match(zipFeedHtml, new RegExp(`/api/media/${zipPostId}\\?download=1`));
+
+  const zipDetailHtml = await (
+    await fetch(`${origin}/posts/${zipPostId}`)
+  ).text();
+  assert.match(zipDetailHtml, /archive\.zip/);
+  assert.match(
+    zipDetailHtml,
+    new RegExp(`/api/media/${zipPostId}\\?download=1`),
+  );
+
+  const zipDownload = await fetch(
+    `${origin}/api/media/${zipPostId}?download=1`,
+  );
+  assert.equal(zipDownload.status, 200);
+  assert.match(
+    zipDownload.headers.get("content-disposition") || "",
+    /archive\.zip/,
+  );
+  assert.deepEqual(
+    Buffer.from(await zipDownload.arrayBuffer()),
+    Buffer.from("PK\u0003\u0004fake-zip"),
+  );
+
+  const zipAfterDownload = await (
+    await fetch(`${origin}/posts/${zipPostId}`)
+  ).text();
+  assert.match(zipAfterDownload, /1 تنزيل/);
+
   // Comment throttling explains the exact rule and remaining wait.
   for (let index = 1; index <= 3; index += 1) {
     const allowedForm = new FormData();

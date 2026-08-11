@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { NextRequest } from "next/server";
 import { getDataDirectory, getPost, incrementDownloadCount } from "@/lib/db";
 import { isAdminRequest } from "@/lib/auth";
+import { getPostDownloadFile } from "@/lib/post-download";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,29 +61,33 @@ export async function GET(
     request.nextUrl.searchParams.get("v") === "thumb" &&
     post.kind === "image" &&
     post.thumb_path;
-  const useFileDownload = download && post.has_file && post.file_path;
-  // Count only real downloadable files (file posts or posts with attached
-  // download file), not plain image/video attachment downloads.
-  if (useFileDownload || (download && (post.kind as string) === "file")) incrementDownloadCount(id);
+  const downloadFile = download ? getPostDownloadFile(post) : null;
 
-  const servePath = useFileDownload
-    ? post.file_path!
+  // has_file=1 must map to a real attachment. Never silently fall back to
+  // downloading the preview image/video for an inconsistent row.
+  if (download && post.has_file === 1 && !downloadFile) {
+    return new Response("Download missing", { status: 404 });
+  }
+
+  const servePath = downloadFile
+    ? downloadFile.path
     : useThumb
       ? post.thumb_path!
       : post.media_path;
-  const serveName = useFileDownload
-    ? post.file_name || "download"
-    : post.media_name || "download";
+  const serveName = downloadFile?.name ?? post.media_name ?? "download";
   const serveType = useThumb
     ? "image/webp"
-    : useFileDownload
-      ? post.file_type || "application/octet-stream"
-      : post.media_type || "application/octet-stream";
+    : downloadFile?.type ?? post.media_type ?? "application/octet-stream";
 
   const filePath = resolveMediaPath(servePath);
   if (!existsSync(filePath)) {
     return new Response("File missing", { status: 404 });
   }
+
+  // Count only successful, real downloads after confirming bytes exist:
+  // text files live in media_*, image/video attachments in file_*, and
+  // legacy file posts in media_*.
+  if (downloadFile) incrementDownloadCount(id);
 
   // Unknown/executable types are forced to download — never rendered inline
   // (blocks SVG/HTML XSS in same-origin contexts).

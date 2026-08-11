@@ -37,6 +37,10 @@ export async function POST(
   const hasFile = formData.get("has_file") === "on";
   const upload = formData.get("media");
   const fileUpload = formData.get("file_upload");
+  const mediaUpload =
+    upload instanceof File && upload.size > 0 ? upload : null;
+  const downloadUpload =
+    fileUpload instanceof File && fileUpload.size > 0 ? fileUpload : null;
 
   if (title.length < 2 || title.length > 120)
     return fail(request, "تحقق من نوع المنشور والعنوان.");
@@ -44,6 +48,18 @@ export async function POST(
     return fail(request, "النص أطول من الحد المسموح.");
   if (post.kind === "text" && !hasFile && body.length < 2)
     return fail(request, "أضف نص المنشور.");
+  if (mediaUpload && mediaUpload.size > maxUploadSize)
+    return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
+  if (mediaUpload && post.kind === "image" && !mediaUpload.type.startsWith("image/"))
+    return fail(request, "الملف المختار ليس صورة.");
+  if (mediaUpload && post.kind === "video" && !mediaUpload.type.startsWith("video/"))
+    return fail(request, "الملف المختار ليس فيديو.");
+  if (downloadUpload && downloadUpload.size > maxUploadSize)
+    return fail(request, "حجم ملف التحميل أكبر من 100 ميجابايت.");
+  if (post.kind === "text" && hasFile && !mediaUpload && !post.media_path)
+    return fail(request, "اختر ملفاً للمنشور.");
+  if (post.kind !== "text" && hasFile && !downloadUpload && !post.file_path)
+    return fail(request, "اختر ملف التحميل.");
 
   const replacedFiles: (string | null | undefined)[] = [];
   let mediaPath = post.media_path;
@@ -59,15 +75,8 @@ export async function POST(
   let fileSize = post.file_size;
 
   // New media replaces the old one (if any).
-  if (upload instanceof File && upload.size > 0) {
-    if (upload.size > maxUploadSize)
-      return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
-    if (post.kind === "image" && !upload.type.startsWith("image/"))
-      return fail(request, "الملف المختار ليس صورة.");
-    if (post.kind === "video" && !upload.type.startsWith("video/"))
-      return fail(request, "الملف المختار ليس فيديو.");
-
-    const buffer = Buffer.from(await upload.arrayBuffer());
+  if (mediaUpload) {
+    const buffer = Buffer.from(await mediaUpload.arrayBuffer());
     if (post.kind === "image") {
       try {
         const thumb = await makeImageThumb(buffer);
@@ -78,7 +87,7 @@ export async function POST(
         return fail(request, "تعذر معالجة الصورة. تأكد أنها صورة سليمة.");
       }
     }
-    const saved = await saveFile(buffer, upload);
+    const saved = await saveFile(buffer, mediaUpload);
     mediaPath = saved.path;
     mediaName = saved.name;
     mediaType = saved.type;
@@ -89,18 +98,16 @@ export async function POST(
   // Secondary download file: new upload replaces, unchecking removes.
   if (post.kind !== "text") {
     if (hasFile) {
-      if (fileUpload instanceof File && fileUpload.size > 0) {
-        if (fileUpload.size > maxUploadSize)
-          return fail(request, "حجم الملف أكبر من 100 ميجابايت.");
-        const buffer = Buffer.from(await fileUpload.arrayBuffer());
-        const saved = await saveFile(buffer, fileUpload);
+      if (downloadUpload) {
+        const buffer = Buffer.from(await downloadUpload.arrayBuffer());
+        const saved = await saveFile(buffer, downloadUpload);
         filePath = saved.path;
         fileName = saved.name;
         fileType = saved.type;
         fileSize = saved.size;
         replacedFiles.push(post.file_path);
       }
-      // has_file on, no new file -> keep existing.
+      // has_file on, no new file -> keep validated existing file.
     } else {
       replacedFiles.push(post.file_path);
       filePath = null;
@@ -112,12 +119,7 @@ export async function POST(
 
   // Text posts: the media slot IS the downloadable file.
   if (post.kind === "text") {
-    if (hasFile) {
-      // Media already replaced above if a new file was uploaded.
-      if (!(upload instanceof File && upload.size > 0) && !mediaPath) {
-        return fail(request, "اختر ملفاً للمنشور.");
-      }
-    } else {
+    if (!hasFile) {
       replacedFiles.push(post.media_path, post.thumb_path);
       mediaPath = null;
       mediaName = null;
