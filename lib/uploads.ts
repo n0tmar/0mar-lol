@@ -26,10 +26,13 @@ export async function makeImageThumb(buffer: Buffer): Promise<{
   width: number | null;
   height: number | null;
 }> {
+  // Instagram-style: keep the full image, cap only the long edge at 1080px
+  // (fit: inside preserves aspect ratio; withoutEnlargement leaves small
+  // images untouched at their original size).
   const thumbBuffer = await sharp(buffer)
     .rotate()
-    .resize({ width: 800, withoutEnlargement: true })
-    .webp({ quality: 80 })
+    .resize({ width: 1080, height: 1080, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 85 })
     .toBuffer();
 
   // Read dims from the actual thumb (post-EXIF-rotation, post-resize)

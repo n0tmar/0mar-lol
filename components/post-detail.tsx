@@ -91,11 +91,6 @@ export function PostDetail({
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [likeBusy, setLikeBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  // Heavy originals (e.g. phone photos, screenshots) would wreck LCP on
-  // mobile — show the WebP thumb and keep full-res one click away.
-  const useThumbOnDetail = !!(
-    post.media_size && post.media_size > 2 * 1024 * 1024
-  );
 
   async function toggleLike() {
     if (likeBusy) return;
@@ -177,13 +172,8 @@ export function PostDetail({
             <div>
               <div className="post-media image-media">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/media/${post.id}${useThumbOnDetail ? "?v=thumb" : ""}`} alt={post.title} width={post.width ?? undefined} height={post.height ?? undefined} fetchPriority="high" decoding="async" onContextMenu={(e) => e.preventDefault()} />
+                <img src={`/api/media/${post.id}?v=thumb`} alt={post.title} width={post.width ?? undefined} height={post.height ?? undefined} fetchPriority="high" decoding="async" onContextMenu={(e) => e.preventDefault()} />
               </div>
-              {useThumbOnDetail && (
-                <a className="full-image-link" href={`/api/media/${post.id}`} target="_blank" rel="noreferrer" dir="ltr">
-                  عرض الصورة كاملة ↗
-                </a>
-              )}
             </div>
           )}
           {post.kind === "image" && post.has_file === 1 && post.media_path && (
