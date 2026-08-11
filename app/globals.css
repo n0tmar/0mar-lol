@@ -236,8 +236,21 @@ main {
   align-self: center;
 }
 
-/* Desktop: the profile badge scales up with the name; comments keep 15px. */
+/* The 512px asset is for desktop; mobile uses the small one. */
+.verified-badge--desktop {
+  display: none;
+}
+
 @media (min-width: 681px) {
+  .verified-badge--mobile {
+    display: none;
+  }
+
+  .verified-badge--desktop {
+    display: inline-block;
+  }
+
+  /* Desktop: the profile badge scales up with the name; comments keep 15px. */
   .profile h1 .verified-badge {
     width: 24px;
     height: 24px;
