@@ -1,0 +1,33 @@
+{
+  "name": "omar-resources",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/next-dev.mjs",
+    "build": "next build",
+    "start": "next start",
+    "test": "npm run test:unit && npm run build && node --test tests/integration.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/unit/*.test.mjs",
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern data"
+  },
+  "dependencies": {
+    "marked": "^18.0.7",
+    "next": "^16.3.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "^16.3.0",
+    "typescript": "5.9.3"
+  },
+  "type": "module",
+  "displayName": "Omar Resources"
+}
