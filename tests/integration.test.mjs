@@ -249,4 +249,31 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   const finalHtml = await (await fetch(origin)).text();
   assert.match(finalHtml, /اختبار منشور نصي/);
   assert.match(finalHtml, /اختبار منشور صورة/);
+
+  // Comment throttling explains the exact rule and remaining wait.
+  for (let index = 1; index <= 3; index += 1) {
+    const allowedForm = new FormData();
+    allowedForm.set("name", `زائر ${index}`);
+    allowedForm.set("body", `تعليق مسموح ${index}`);
+    const allowed = await fetch(`${origin}/api/posts/${postId}/comments`, {
+      method: "POST",
+      body: allowedForm,
+    });
+    assert.equal(allowed.status, 201);
+  }
+
+  const limitedForm = new FormData();
+  limitedForm.set("name", "زائر رابع");
+  limitedForm.set("body", "تعليق يتجاوز الحد");
+  const limited = await fetch(`${origin}/api/posts/${postId}/comments`, {
+    method: "POST",
+    body: limitedForm,
+  });
+  assert.equal(limited.status, 429);
+  const retryAfter = Number(limited.headers.get("retry-after"));
+  assert.ok(retryAfter > 0 && retryAfter <= 10 * 60);
+  const limitedBody = await limited.json();
+  assert.equal(limitedBody.retry_after, retryAfter);
+  assert.match(limitedBody.message, /3 تعليقات خلال 10 دقائق/);
+  assert.match(limitedBody.message, /جرّب مرة ثانية بعد/);
 });

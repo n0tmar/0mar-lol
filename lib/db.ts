@@ -433,13 +433,16 @@ export function incrementDownloadCount(id: string) {
     .run(id);
 }
 
-export function countRecentComments(ipHash: string, since: number) {
+export function getRecentCommentActivity(ipHash: string, since: number) {
   const result = getDatabase()
     .prepare(
-      "SELECT COUNT(*) AS count FROM comments WHERE ip_hash = ? AND created_at > ?",
+      `SELECT COUNT(*) AS count, MIN(created_at) AS oldest_at
+       FROM comments
+       WHERE ip_hash = ? AND created_at > ?`,
     )
-    .get(ipHash, since) as { count: number };
-  return result.count;
+    .get(ipHash, since) as { count: number; oldest_at: number | null };
+
+  return { count: result.count, oldestAt: result.oldest_at };
 }
 
 export function addComment(input: {
