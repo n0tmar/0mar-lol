@@ -1,4 +1,4 @@
-import { absoluteUrl } from "@/lib/url";
+import { dashboardRedirectUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import {
   assertSameOrigin,
@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   } catch {
     return new NextResponse("Forbidden", { status: 403 });
   }
-  const response = NextResponse.redirect(absoluteUrl(request, "/"), 303);
+  // After logout land on the login page (root on the dashboard subdomain).
+  const response = NextResponse.redirect(dashboardRedirectUrl(request, "/login"), 303);
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
     sameSite: "lax",

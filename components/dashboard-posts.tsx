@@ -108,10 +108,12 @@ function PostCard({
   post,
   selected,
   onToggle,
+  base,
 }: {
   post: DashPost;
   selected: boolean;
   onToggle: () => void;
+  base: string;
 }) {
   const [published, setPublished] = useState(post.published === 1);
   const [pinned, setPinned] = useState(post.pinned === 1);
@@ -174,7 +176,7 @@ function PostCard({
           <CopyId id={post.id} />
           <Link
             className="dash-icon-btn"
-            href={`/dashboard/edit/${post.id}`}
+            href={`${base}/edit/${post.id}`}
             title="تعديل"
             aria-label="تعديل"
             onClick={(e) => e.stopPropagation()}
@@ -246,7 +248,15 @@ function PostCard({
   );
 }
 
-export function DashboardPosts({ posts, idMap }: { posts: DashPost[]; idMap: Record<string, string> }) {
+export function DashboardPosts({
+  posts,
+  idMap,
+  base,
+}: {
+  posts: DashPost[];
+  idMap: Record<string, string>;
+  base: string;
+}) {
   const [selected, setSelected] = useState<DashPost | null>(null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]["value"]>("all");
@@ -353,6 +363,7 @@ export function DashboardPosts({ posts, idMap }: { posts: DashPost[]; idMap: Rec
                 post={post}
                 selected={selected?.id === post.id}
                 onToggle={() => setSelected(selected?.id === post.id ? null : post)}
+                base={base}
               />
             ))}
           </div>

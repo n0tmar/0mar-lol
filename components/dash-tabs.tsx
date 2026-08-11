@@ -4,38 +4,40 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconComment, IconEdit, IconText } from "@/components/icons";
 import {
+  dashboardTabHref,
   isDashboardTabActive,
-  type DashboardTabHref,
+  type DashboardTabId,
 } from "@/lib/dashboard-nav";
 
-export function DashTabs({ badge }: { badge: number }) {
+export function DashTabs({ badge, base }: { badge: number; base: string }) {
   const pathname = usePathname();
 
   const tabs: {
-    href: DashboardTabHref;
+    id: DashboardTabId;
     label: string;
     icon: typeof IconText;
   }[] = [
-    { href: "/dashboard", label: "المنشورات", icon: IconText },
-    { href: "/dashboard/new", label: "منشور جديد", icon: IconEdit },
-    { href: "/dashboard/comments", label: "التعليقات", icon: IconComment },
+    { id: "posts", label: "المنشورات", icon: IconText },
+    { id: "new", label: "منشور جديد", icon: IconEdit },
+    { id: "comments", label: "التعليقات", icon: IconComment },
   ];
 
   return (
     <nav className="dash-tabs" aria-label="أقسام لوحة التحكم">
       {tabs.map((tab) => {
-        const active = isDashboardTabActive(pathname, tab.href);
+        const href = dashboardTabHref(tab.id, base);
+        const active = isDashboardTabActive(pathname, tab.id, base);
         const Icon = tab.icon;
         return (
           <Link
-            key={tab.href}
-            href={tab.href}
+            key={tab.id}
+            href={href}
             className={`dash-tab ${active ? "is-active" : ""}`}
             aria-current={active ? "page" : undefined}
           >
             <span className="dash-tab__icon">
               <Icon size={20} />
-              {tab.href === "/dashboard/comments" && badge > 0 && (
+              {tab.id === "comments" && badge > 0 && (
                 <span className="dash-tab__badge">{badge}</span>
               )}
             </span>

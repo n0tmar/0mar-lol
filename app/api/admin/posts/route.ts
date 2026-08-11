@@ -1,4 +1,4 @@
-import { absoluteUrl } from "@/lib/url";
+import { dashboardRedirectUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { createPost, type PostKind } from "@/lib/db";
@@ -10,14 +10,14 @@ const validKinds = new Set<PostKind>(["text", "image", "video"]);
 
 function fail(request: NextRequest, code: string) {
   return NextResponse.redirect(
-    absoluteUrl(request, `/dashboard?error=${encodeURIComponent(code)}`),
+    dashboardRedirectUrl(request, `?error=${encodeURIComponent(code)}`),
     303,
   );
 }
 
 export async function POST(request: NextRequest) {
   if (!isAdminRequest(request))
-    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
+    return NextResponse.redirect(dashboardRedirectUrl(request, "/login"), 303);
   try {
     assertSameOrigin(request);
   } catch {
@@ -113,5 +113,5 @@ export async function POST(request: NextRequest) {
     thumbPath,
   });
 
-  return NextResponse.redirect(absoluteUrl(request, "/dashboard?created=1"), 303);
+  return NextResponse.redirect(dashboardRedirectUrl(request, "?created=1"), 303);
 }

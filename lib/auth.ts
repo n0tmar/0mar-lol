@@ -6,6 +6,7 @@ import { getDataDirectory } from "@/lib/db";
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { dashboardBasePath } from "@/lib/dashboard-host";
 import {
   sessionCookieName,
   sessionLength,
@@ -36,7 +37,10 @@ export async function isAdmin() {
 }
 
 export async function requireAdmin() {
-  if (!(await isAdmin())) redirect("/dashboard/login");
+  if (!(await isAdmin())) {
+    // On the dashboard subdomain the login page lives at /login.
+    redirect(`${await dashboardBasePath()}/login`);
+  }
 }
 
 export function isAdminRequest(request: Request) {

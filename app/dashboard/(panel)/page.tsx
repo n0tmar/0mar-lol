@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { getPostTitleMap, listDashboardPosts } from "@/lib/db";
 import { DashboardPosts } from "@/components/dashboard-posts";
+import { dashboardBasePath } from "@/lib/dashboard-host";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function DashboardPostsPage({
   searchParams: Promise<{ created?: string; edited?: string; error?: string }>;
 }) {
   await requireAdmin();
-  const params = await searchParams;
+  const [params, base] = await Promise.all([searchParams, dashboardBasePath()]);
   const posts = listDashboardPosts().map((p) => ({ ...p }));
   const idMap = { ...getPostTitleMap() };
 
@@ -33,7 +34,7 @@ export default async function DashboardPostsPage({
           {decodeURIComponent(params.error)}
         </p>
       )}
-      <DashboardPosts posts={posts} idMap={idMap} />
+      <DashboardPosts posts={posts} idMap={idMap} base={base} />
     </>
   );
 }

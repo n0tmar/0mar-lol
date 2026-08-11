@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
+import { dashboardBasePath, publicSiteRoot } from "@/lib/dashboard-host";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export default async function DashboardLogin({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  if (await isAdmin()) redirect("/dashboard");
+  const base = await dashboardBasePath();
+  if (await isAdmin()) redirect(base || "/");
   const params = await searchParams;
   const configError = params.error === "config";
 
@@ -57,7 +59,7 @@ export default async function DashboardLogin({
           </p>
         )}
 
-        <Link className="login-back" href="/">
+        <Link className="login-back" href={publicSiteRoot()}>
           → العودة للموقع
         </Link>
       </div>

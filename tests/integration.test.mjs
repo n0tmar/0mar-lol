@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createECDH, randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,6 +16,42 @@ pushClient.generateKeys();
 
 function cookieFrom(response) {
   return response.headers.get("set-cookie")?.split(";")[0] || "";
+}
+
+/**
+ * fetch() strips a custom Host header (forbidden in the fetch spec), so
+ * host-based routing tests go through node:http, which lets us override it.
+ */
+function fetchWithHost(pathname, { host, cookie, method = "GET", body, contentType } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        host: "127.0.0.1",
+        port,
+        path: pathname,
+        method,
+        headers: {
+          host,
+          ...(cookie ? { cookie } : {}),
+          ...(contentType ? { "content-type": contentType } : {}),
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            text: () => Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
 }
 
 async function waitForServer() {
@@ -53,6 +90,8 @@ test("publishing, likes, downloads, comments and media work together", async (t)
         VAPID_PUBLIC_KEY: vapidKeys.publicKey,
         VAPID_PRIVATE_KEY: vapidKeys.privateKey,
         VAPID_SUBJECT: "mailto:test@example.com",
+        PUBLIC_HOST: "0mar.test",
+        DASHBOARD_HOST: "dashboard.0mar.test",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -275,6 +314,85 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     /\/api\/admin\/comments\/([a-f0-9-]+)/,
   )?.[1];
   assert.ok(commentId, "comment should be visible in dashboard");
+
+  // Host-based routing (PUBLIC_HOST / DASHBOARD_HOST): the dashboard lives
+  // on its own subdomain, at the root.
+  const dashboardHost = "dashboard.0mar.test";
+  const publicHost = "0mar.test";
+
+  // Main host: /dashboard/* permanently moved to the dashboard subdomain.
+  const movedDashboard = await fetchWithHost("/dashboard", {
+    host: publicHost,
+  });
+  assert.equal(movedDashboard.status, 308);
+  assert.equal(movedDashboard.headers.location, `https://${dashboardHost}/`);
+
+  const movedComments = await fetchWithHost("/dashboard/comments", {
+    host: publicHost,
+  });
+  assert.equal(movedComments.status, 308);
+  assert.equal(
+    movedComments.headers.location,
+    `https://${dashboardHost}/comments`,
+  );
+
+  // Subdomain root serves the dashboard (signed in).
+  const subRoot = await fetchWithHost("/", {
+    host: dashboardHost,
+    cookie: adminCookie,
+  });
+  assert.equal(subRoot.status, 200);
+  assert.match(await subRoot.text(), /إشعارات التعليقات/);
+
+  // Signed out: the root bounces to the host-aware login path.
+  const subRootSignedOut = await fetchWithHost("/", {
+    host: dashboardHost,
+  });
+  assert.equal(subRootSignedOut.status, 307);
+  assert.match(subRootSignedOut.headers.location || "", /\/login$/);
+
+  // Clean subdomain paths map onto the dashboard routes.
+  const subLogin = await fetchWithHost("/login", { host: dashboardHost });
+  assert.equal(subLogin.status, 200);
+  assert.match(await subLogin.text(), /أدخل كلمة المرور/);
+
+  const subComments = await fetchWithHost("/comments", {
+    host: dashboardHost,
+    cookie: adminCookie,
+  });
+  assert.equal(subComments.status, 200);
+  assert.match(await subComments.text(), /زائر تجريبي/);
+
+  // Legacy /dashboard/* URLs on the subdomain redirect to clean root URLs.
+  const legacySubdomainUrl = await fetchWithHost("/dashboard/comments", {
+    host: dashboardHost,
+    cookie: adminCookie,
+  });
+  assert.equal(legacySubdomainUrl.status, 308);
+  assert.equal(
+    legacySubdomainUrl.headers.location,
+    `https://${dashboardHost}/comments`,
+  );
+
+  // Public pages on the subdomain bounce back to the main host.
+  const publicBounce = await fetchWithHost(`/posts/${postId}`, {
+    host: dashboardHost,
+  });
+  assert.equal(publicBounce.status, 308);
+  assert.equal(
+    publicBounce.headers.location,
+    `https://${publicHost}/posts/${postId}`,
+  );
+
+  // Admin APIs answer on the dashboard subdomain (same-origin session cookie).
+  const subdomainPush = await fetchWithHost("/api/admin/push", {
+    host: dashboardHost,
+    cookie: adminCookie,
+    method: "POST",
+    contentType: "application/json",
+    body: JSON.stringify(pushSubscription),
+  });
+  assert.equal(subdomainPush.status, 201);
 
   const deleteForm = new FormData();
   deleteForm.set("action", "delete");

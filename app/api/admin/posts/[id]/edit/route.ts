@@ -1,4 +1,4 @@
-import { absoluteUrl } from "@/lib/url";
+import { dashboardRedirectUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { getPost, updatePost } from "@/lib/db";
@@ -9,7 +9,7 @@ const maxUploadSize = 100 * 1024 * 1024;
 
 function fail(request: NextRequest, code: string) {
   return NextResponse.redirect(
-    absoluteUrl(request, `/dashboard?error=${encodeURIComponent(code)}`),
+    dashboardRedirectUrl(request, `?error=${encodeURIComponent(code)}`),
     303,
   );
 }
@@ -19,7 +19,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   if (!isAdminRequest(request))
-    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
+    return NextResponse.redirect(dashboardRedirectUrl(request, "/login"), 303);
   try {
     assertSameOrigin(request);
   } catch {
@@ -149,5 +149,5 @@ export async function POST(
 
   await deleteUploadedFiles(replacedFiles);
 
-  return NextResponse.redirect(absoluteUrl(request, "/dashboard?edited=1"), 303);
+  return NextResponse.redirect(dashboardRedirectUrl(request, "?edited=1"), 303);
 }
