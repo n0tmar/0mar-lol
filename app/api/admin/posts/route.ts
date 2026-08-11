@@ -10,7 +10,7 @@ const validKinds = new Set<PostKind>(["text", "image", "video"]);
 
 function fail(request: NextRequest, code: string) {
   return NextResponse.redirect(
-    new URL(`/dashboard?error=${encodeURIComponent(code)}`, request.url),
+    absoluteUrl(request, `/dashboard?error=${encodeURIComponent(code)}`),
     303,
   );
 }
