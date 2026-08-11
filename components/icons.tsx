@@ -224,24 +224,6 @@ export function IconPin({ size = 14 }: IconProps) {
   );
 }
 
-export function IconVerified({ size = 14 }: IconProps) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12.5 10 17.5 19 7" />
-    </svg>
-  );
-}
-
 export function IconReply({ size = 14 }: IconProps) {
   return (
     <svg

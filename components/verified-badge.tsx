@@ -1,10 +1,13 @@
-import { IconVerified } from "@/components/icons";
-
-/** Verified badge — orange check, shown next to the owner's name. */
-export function VerifiedBadge({ size = 17 }: { size?: number }) {
+/** Verified badge — orange check icon, shown next to the owner's name. */
+export function VerifiedBadge({ size = 16 }: { size?: number }) {
   return (
-    <span className="verified-badge" aria-label="حساب موثق">
-      <IconVerified size={size} />
-    </span>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="verified-badge"
+      src="/icons/verify.png"
+      alt="حساب موثق"
+      width={size}
+      height={size}
+    />
   );
 }
