@@ -3,6 +3,17 @@
    ===================================================================== */
 
 
+/* Native-app feel: no pinch/double-tap zoom, no iOS font reflow */
+* {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* Saudi Riyal currency symbol (U+20C1) — Saudi Riyal Font, SIL OFL 1.1
    © Emran Alhaddad — https://github.com/emran-alhaddad/Saudi-Riyal-Font */
 @font-face {
