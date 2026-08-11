@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, anonymizeIp, isAdminRequest } from "@/lib/auth";
 import { addComment, getComment } from "@/lib/db";
@@ -10,7 +11,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   if (!isAdminRequest(request)) {
-    return NextResponse.redirect(new URL("/dashboard/login", request.url), 303);
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
   }
   try {
     assertSameOrigin(request);
@@ -22,7 +23,7 @@ export async function POST(
   const comment = getComment(id);
   if (!comment) {
     return NextResponse.redirect(
-      new URL("/dashboard/comments?error=missing", request.url),
+      absoluteUrl(request, "/dashboard/comments?error=missing"),
       303,
     );
   }
@@ -32,7 +33,7 @@ export async function POST(
 
   if (body.length < 2 || body.length > 500) {
     return NextResponse.redirect(
-      new URL("/dashboard/comments?error=short", request.url),
+      absoluteUrl(request, "/dashboard/comments?error=short"),
       303,
     );
   }
@@ -46,7 +47,7 @@ export async function POST(
   });
 
   return NextResponse.redirect(
-    new URL("/dashboard/comments?replied=1", request.url),
+    absoluteUrl(request, "/dashboard/comments?replied=1"),
     303,
   );
 }

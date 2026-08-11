@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { createPost, type PostKind } from "@/lib/db";
@@ -16,7 +17,7 @@ function fail(request: NextRequest, code: string) {
 
 export async function POST(request: NextRequest) {
   if (!isAdminRequest(request))
-    return NextResponse.redirect(new URL("/dashboard/login", request.url), 303);
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
   try {
     assertSameOrigin(request);
   } catch {
@@ -112,5 +113,5 @@ export async function POST(request: NextRequest) {
     thumbPath,
   });
 
-  return NextResponse.redirect(new URL("/dashboard?created=1", request.url), 303);
+  return NextResponse.redirect(absoluteUrl(request, "/dashboard?created=1"), 303);
 }

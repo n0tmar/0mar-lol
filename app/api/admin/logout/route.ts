@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import {
   assertSameOrigin,
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return new NextResponse("Forbidden", { status: 403 });
   }
-  const response = NextResponse.redirect(new URL("/", request.url), 303);
+  const response = NextResponse.redirect(absoluteUrl(request, "/"), 303);
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
     sameSite: "lax",

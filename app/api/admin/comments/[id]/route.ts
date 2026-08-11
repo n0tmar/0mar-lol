@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { deleteComment } from "@/lib/db";
@@ -7,7 +8,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   if (!isAdminRequest(request)) {
-    return NextResponse.redirect(new URL("/dashboard/login", request.url), 303);
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
   }
   try {
     assertSameOrigin(request);
@@ -21,5 +22,5 @@ export async function POST(
 
   if (action === "delete") deleteComment(id);
 
-  return NextResponse.redirect(new URL("/dashboard/comments", request.url), 303);
+  return NextResponse.redirect(absoluteUrl(request, "/dashboard/comments"), 303);
 }

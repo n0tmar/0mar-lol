@@ -52,7 +52,12 @@ export function isAdminRequest(request: Request) {
 export function assertSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return;
-  const expected = new URL(request.url).origin;
+  // Behind a proxy, request.url carries the server's own listen address;
+  // derive the expected origin from the forwarded headers instead.
+  const proto = request.headers.get("x-forwarded-proto") ?? "http";
+  const host = request.headers.get("host");
+  if (!host) throw new Error("Invalid request origin.");
+  const expected = `${proto}://${host}`;
   if (origin !== expected) throw new Error("Invalid request origin.");
 }
 

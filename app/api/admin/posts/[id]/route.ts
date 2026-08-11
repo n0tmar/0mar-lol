@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
@@ -17,7 +18,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   if (!isAdminRequest(request)) {
-    return NextResponse.redirect(new URL("/dashboard/login", request.url), 303);
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard/login"), 303);
   }
   try {
     assertSameOrigin(request);
@@ -30,7 +31,7 @@ export async function POST(
   const action = String(formData.get("action") || "");
   const post = getPost(id);
   if (!post) {
-    return NextResponse.redirect(new URL("/dashboard?error=missing", request.url), 303);
+    return NextResponse.redirect(absoluteUrl(request, "/dashboard?error=missing"), 303);
   }
 
   if (action === "publish") setPostPublished(id, true);
@@ -47,5 +48,5 @@ export async function POST(
     }
   }
 
-  return NextResponse.redirect(new URL("/dashboard", request.url), 303);
+  return NextResponse.redirect(absoluteUrl(request, "/dashboard"), 303);
 }

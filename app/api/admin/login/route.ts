@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@/lib/url";
 import { NextRequest, NextResponse } from "next/server";
 import {
   assertSameOrigin,
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     const ip = clientIp(request);
     if (isLoginLocked(ip)) {
       return NextResponse.redirect(
-        new URL("/dashboard/login?error=locked", request.url),
+        absoluteUrl(request, "/dashboard/login?error=locked"),
         303,
       );
     }
@@ -38,13 +39,13 @@ export async function POST(request: NextRequest) {
       // Constant-ish delay so timing attacks gain nothing and brute force slows.
       await new Promise((resolve) => setTimeout(resolve, 400));
       return NextResponse.redirect(
-        new URL("/dashboard/login?error=1", request.url),
+        absoluteUrl(request, "/dashboard/login?error=1"),
         303,
       );
     }
 
     clearLoginFailures(ip);
-    const response = NextResponse.redirect(new URL("/dashboard", request.url), 303);
+    const response = NextResponse.redirect(absoluteUrl(request, "/dashboard"), 303);
     response.cookies.set(
       sessionCookieName,
       createSessionToken(),
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("login route error:", error);
     return NextResponse.redirect(
-      new URL("/dashboard/login?error=config", request.url),
+      absoluteUrl(request, "/dashboard/login?error=config"),
       303,
     );
   }
