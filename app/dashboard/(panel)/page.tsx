@@ -22,9 +22,17 @@ export default async function DashboardPostsPage({
 
   return (
     <>
-      {params.created && <p className="dash-alert" style={{ marginBottom: 12 }}>تمت إضافة المنشور.</p>}
-      {params.edited && <p className="dash-alert" style={{ marginBottom: 12 }}>تم حفظ التعديلات.</p>}
-      {params.error && <p className="dash-alert dash-alert--error" style={{ marginBottom: 12 }}>{decodeURIComponent(params.error)}</p>}
+      {params.created && (
+        <p className="dash-alert dash-alert--spaced" role="status">تمت إضافة المنشور.</p>
+      )}
+      {params.edited && (
+        <p className="dash-alert dash-alert--spaced" role="status">تم حفظ التعديلات.</p>
+      )}
+      {params.error && (
+        <p className="dash-alert dash-alert--error dash-alert--spaced" role="alert">
+          {decodeURIComponent(params.error)}
+        </p>
+      )}
       <DashboardPosts posts={posts} idMap={idMap} />
     </>
   );

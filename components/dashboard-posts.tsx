@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { PostRecord } from "@/lib/types";
 import { formatRelativeDate } from "@/lib/format";
@@ -33,7 +33,7 @@ function formatFileSize(bytes: number) {
 
 function PostPreview({ post, idMap }: { post: DashPost; idMap: Record<string, string> }) {
   return (
-    <div className="dash-preview" role="dialog" aria-modal="true" aria-label="معاينة المنشور">
+    <div className="dash-preview">
       <div className="post-card">
         <div className="post-header">
           <div className="author">
@@ -123,11 +123,12 @@ function PostCard({
     const next = !published;
     setPublished(next); // optimistic
     try {
-      await fetch(`/api/admin/posts/${post.id}`, {
+      const response = await fetch(`/api/admin/posts/${post.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ action: next ? "publish" : "unpublish" }),
       });
+      if (!response.ok) throw new Error("Publish update failed");
     } catch {
       setPublished(post.published === 1); // revert on failure
     } finally {
@@ -141,11 +142,12 @@ function PostCard({
     const next = !pinned;
     setPinned(next); // optimistic
     try {
-      await fetch(`/api/admin/posts/${post.id}`, {
+      const response = await fetch(`/api/admin/posts/${post.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ action: next ? "pin" : "unpin" }),
       });
+      if (!response.ok) throw new Error("Pin update failed");
     } catch {
       setPinned(post.pinned === 1); // revert on failure
     } finally {
@@ -154,19 +156,7 @@ function PostCard({
   }
 
   return (
-    <div
-      className={`dash-post-card ${selected ? "is-active" : ""}`}
-      role="button"
-      tabIndex={0}
-      aria-expanded={selected}
-      onClick={onToggle}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onToggle();
-        }
-      }}
-    >
+    <article className={`dash-post-card ${selected ? "is-active" : ""}`}>
       <div className="dash-post-card__top">
         <span className="dash-post-card__type">
           <TypeIcon kind={post.kind} />
@@ -232,7 +222,14 @@ function PostCard({
           </ConfirmDelete>
         </div>
       </div>
-      <strong className="dash-post-card__title">{post.title}</strong>
+      <button
+        type="button"
+        className="dash-post-card__title"
+        aria-expanded={selected}
+        onClick={onToggle}
+      >
+        {post.title}
+      </button>
       <div className="dash-post-card__meta">
         <span className="dash-meta__item">
           <IconHeart size={13} /> {post.like_count}
@@ -245,7 +242,7 @@ function PostCard({
         </span>
         <span className="dash-post-card__date">{formatRelativeDate(post.created_at)}</span>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -253,18 +250,19 @@ export function DashboardPosts({ posts, idMap }: { posts: DashPost[]; idMap: Rec
   const [selected, setSelected] = useState<DashPost | null>(null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]["value"]>("all");
+  const previewDialogRef = useRef<HTMLDialogElement | null>(null);
 
-  // Escape closes the preview; scroll lock while open.
+  function closePreview() {
+    previewDialogRef.current?.close();
+  }
+
   useEffect(() => {
     if (!selected) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelected(null);
-    };
-    document.addEventListener("keydown", onKey);
+    const dialog = previewDialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
   }, [selected]);
@@ -283,20 +281,26 @@ export function DashboardPosts({ posts, idMap }: { posts: DashPost[]; idMap: Rec
   return (
     <>
       {selected && (
-        <div className="dash-preview-backdrop" onClick={() => setSelected(null)} />
-      )}
-      {selected && (
-        <div className="dash-preview-wrap">
+        <dialog
+          ref={previewDialogRef}
+          className="dash-preview-dialog"
+          aria-label="معاينة المنشور"
+          onClose={() => setSelected(null)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closePreview();
+          }}
+        >
           <button
             type="button"
             className="dash-preview-close"
             aria-label="إغلاق"
-            onClick={() => setSelected(null)}
+            onClick={closePreview}
+            autoFocus
           >
             ✕
           </button>
           <PostPreview post={selected} idMap={idMap} />
-        </div>
+        </dialog>
       )}
 
       <div className="dash-page">

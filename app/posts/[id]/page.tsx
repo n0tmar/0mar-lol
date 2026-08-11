@@ -25,10 +25,12 @@ export async function generateMetadata({
 
 export default async function PostPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ comments?: string | string[] }>;
 }) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const post = getPost(id);
   if (!post || post.published !== 1) {
     notFound();
@@ -53,7 +55,7 @@ export default async function PostPage({
       }}
       idMap={idMap}
       visitorName={visitorName}
-      visitorId={visitorId ?? null}
+      initialCommentsOpen={query.comments === "1"}
     />
   );
 }

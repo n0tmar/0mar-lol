@@ -23,6 +23,7 @@ export function DashTabs({ badge }: { badge: number }) {
             key={tab.href}
             href={tab.href}
             className={`dash-tab ${active ? "is-active" : ""}`}
+            aria-current={active ? "page" : undefined}
           >
             <span className="dash-tab__icon">
               <Icon size={20} />

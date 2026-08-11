@@ -61,7 +61,9 @@ export function FileUpload({
         <div className="file-upload file-upload--selected">
           <div className="file-upload__info">
             <span className="file-upload__name">{file.name}</span>
-            <span className="file-upload__size">{formatSize(file.size)}</span>
+            {file.size > 0 && (
+              <span className="file-upload__size">{formatSize(file.size)}</span>
+            )}
           </div>
           <button
             type="button"
@@ -96,8 +98,11 @@ export function FileUpload({
         onDrop={handleDrop}
         role="button"
         tabIndex={0}
+        aria-label={`اختر ${label}`}
         onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") inputRef.current?.click();
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          inputRef.current?.click();
         }}
       >
         <svg className="file-upload__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -105,7 +110,8 @@ export function FileUpload({
         </svg>
         <div className="file-upload__text">
           <strong>اختر {label}</strong>
-          <span>أو اسحب وأفلت الملف هنا</span>
+          <span className="file-upload__drop-hint">أو اسحب وأفلت الملف هنا</span>
+          <span className="file-upload__tap-hint">اضغط لاختيار الملف من جهازك</span>
           <span className="file-upload__hint">الحد الأقصى 100 ميجابايت</span>
         </div>
       </div>

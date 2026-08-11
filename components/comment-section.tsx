@@ -24,11 +24,9 @@ function Counter({ value, max }: { value: number; max: number }) {
 function CommentItem({
   node,
   onReply,
-  visitorId,
 }: {
   node: CommentNode;
   onReply: (node: CommentNode) => void;
-  visitorId?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -86,7 +84,6 @@ function CommentItem({
               key={child.id}
               node={child}
               onReply={onReply}
-              visitorId={visitorId}
             />
           ))}
           {collapsed && !expanded && (
@@ -231,13 +228,11 @@ export function CommentSection({
   initialComments,
   initialTotal,
   initialName = null,
-  visitorId = null,
 }: {
   postId: string;
   initialComments: CommentRecord[];
   initialTotal: number;
   initialName?: string | null;
-  visitorId?: string | null;
 }) {
   const [comments, setComments] = useState(initialComments);
   const [total, setTotal] = useState(initialTotal);
@@ -287,7 +282,6 @@ export function CommentSection({
               <CommentItem
                 key={node.id}
                 node={node}
-                visitorId={visitorId}
                 onReply={(target) => {
                   setReplyTarget({ id: target.id, name: target.name });
                   setFocusSignal((s) => s + 1);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CommentRecord, PostRecord } from "@/lib/types";
 import { formatRelativeDate } from "@/lib/format";
 import { Markdown } from "@/components/markdown";
@@ -80,17 +80,18 @@ export function PostDetail({
   post,
   idMap,
   visitorName,
-  visitorId,
+  initialCommentsOpen = false,
 }: {
   post: DetailPost;
   idMap: Record<string, string>;
   visitorName?: string | null;
-  visitorId?: string | null;
+  initialCommentsOpen?: boolean;
 }) {
   const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [likeBusy, setLikeBusy] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(initialCommentsOpen);
+  const commentsDialogRef = useRef<HTMLDialogElement | null>(null);
 
   async function toggleLike() {
     if (likeBusy) return;
@@ -118,30 +119,32 @@ export function PostDetail({
     setCommentsOpen(true);
   }
 
-  function closeComments() {
-    setCommentsOpen(false);
+  function removeCommentsQuery() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("comments")) return;
+    url.searchParams.delete("comments");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
-  // Arriving via the feed's comment icon (?comments=1): open the sheet
-  // immediately instead of requiring a second click.
-  useEffect(() => {
-    if (window.location.search.includes("comments=1")) {
-      openComments();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function closeComments() {
+    setCommentsOpen(false);
+    removeCommentsQuery();
+  }
 
-  // Escape closes the sheet; scroll lock while open.
+  // Keep native dialog state synchronized with React. showModal() provides
+  // focus trapping, Escape handling, and focus restoration for free.
+  useEffect(() => {
+    const dialog = commentsDialogRef.current;
+    if (!dialog) return;
+    if (commentsOpen && !dialog.open) dialog.showModal();
+    if (!commentsOpen && dialog.open) dialog.close();
+  }, [commentsOpen]);
+
   useEffect(() => {
     if (!commentsOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setCommentsOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
   }, [commentsOpen]);
@@ -271,35 +274,45 @@ export function PostDetail({
           </div>
         </article>
 
-        {commentsOpen && <div className="comment-sheet-backdrop" onClick={closeComments} />}
-        <div
-          className={`comment-sheet ${commentsOpen ? "is-open" : ""}`}
-          role="dialog"
-          aria-modal="true"
+        <dialog
+          ref={commentsDialogRef}
+          className="comment-sheet"
           aria-label="التعليقات"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeComments();
+          }}
+          onClose={() => {
+            setCommentsOpen(false);
+            removeCommentsQuery();
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeComments();
+          }}
         >
-          <div className="comment-sheet__handle" aria-hidden="true" />
-          <div className="comment-sheet__header">
-            <h2>التعليقات ({post.comment_total})</h2>
-            <button
-              type="button"
-              className="comment-sheet__close"
-              aria-label="إغلاق"
-              onClick={closeComments}
-            >
-              ✕
-            </button>
+          <div className="comment-sheet__surface">
+            <div className="comment-sheet__handle" aria-hidden="true" />
+            <div className="comment-sheet__header">
+              <h2>التعليقات ({post.comment_total})</h2>
+              <button
+                type="button"
+                className="comment-sheet__close"
+                aria-label="إغلاق"
+                onClick={closeComments}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="comment-sheet__body">
+              <CommentSection
+                postId={post.id}
+                initialComments={post.comments}
+                initialTotal={post.comment_total}
+                initialName={visitorName ?? null}
+              />
+            </div>
           </div>
-          <div className="comment-sheet__body">
-            <CommentSection
-              postId={post.id}
-              initialComments={post.comments}
-              initialTotal={post.comment_total}
-              initialName={visitorName ?? null}
-              visitorId={visitorId ?? null}
-            />
-          </div>
-        </div>
+        </dialog>
       </div>
     </main>
   );

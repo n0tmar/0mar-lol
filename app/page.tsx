@@ -4,7 +4,6 @@ import {
   countPublishedPosts,
   getLikeStates,
   getPostTitleMap,
-  getVisitorReplyNotifications,
   listFeedPosts,
   listPinnedPosts,
 } from "@/lib/db";
@@ -41,7 +40,8 @@ export default async function Home() {
   const pinnedPosts = listPinnedPosts();
   const feedPosts = listFeedPosts();
   const total = countPublishedPosts();
-    const attachLikeStates = (posts: (typeof feedPosts)): FeedPost[] => {
+
+  const attachLikeStates = (posts: typeof feedPosts): FeedPost[] => {
     const likeStates = getLikeStates(
       posts.map((post) => post.id),
       visitorId,
@@ -55,12 +55,8 @@ export default async function Home() {
       };
     });
   };
-  const pinned = attachLikeStates(pinnedPosts).map((post) => ({
-    ...post,
-  }));
-  const rest = attachLikeStates(feedPosts).map((post) => ({
-    ...post,
-  }));
+  const pinned = attachLikeStates(pinnedPosts);
+  const rest = attachLikeStates(feedPosts);
 
   const idMap = getPostTitleMap();
 
@@ -125,7 +121,12 @@ export default async function Home() {
             <h2 id="posts-title">آخر المنشورات</h2>
             <span>{total}</span>
           </div>
-          <PostFeed posts={rest} idMap={idMap} total={total} />
+          <PostFeed
+            posts={rest}
+            idMap={idMap}
+            total={total}
+            eagerFirst={pinned.length === 0}
+          />
         </section>
 
         <footer className="bio-footer">

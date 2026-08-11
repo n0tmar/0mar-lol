@@ -117,7 +117,9 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
   const [mediaUrl, setMediaUrl] = useState<string | null>(() =>
-    post?.media_path ? `/api/media/${post.id}` : null,
+    post?.media_path
+      ? `/api/media/${post.id}${post.kind === "image" ? "?v=thumb" : ""}`
+      : null,
   );
   const [mediaName, setMediaName] = useState<string | null>(post?.media_name ?? null);
   const [addFile, setAddFile] = useState(post?.has_file === 1);
@@ -222,6 +224,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
                   type="button"
                   className="composer-toolbar__btn"
                   title={tool.title}
+                  aria-label={tool.title}
                   onClick={() => {
                     const textarea = bodyRef.current;
                     if (!textarea) return;
@@ -257,7 +260,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
                 name="media"
                 accept={kind === "text" ? undefined : accept}
                 label={kind === "text" ? "ملف" : mediaLabel}
-                required
+                required={!mediaName}
                 file={mediaName ? { name: mediaName, size: 0 } : null}
                 onSelect={(file) => {
                   if (mediaUrl) URL.revokeObjectURL(mediaUrl);
@@ -274,7 +277,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
               <FileUpload
                 name="file_upload"
                 label="ملف للتحميل"
-                required
+                required={!downloadName}
                 file={downloadName ? { name: downloadName, size: 0 } : null}
                 onSelect={(file) => setDownloadName(file.name)}
                 onRemove={() => setDownloadName(null)}
@@ -284,7 +287,7 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
         </div>
 
         <div className="composer-submit">
-          <div style={{ display: "flex", gap: 16 }}>
+          <div className="composer-switches">
             <label className="switch-field">
               <input
                 name="has_file"
@@ -296,12 +299,16 @@ export function PostComposer({ idMap, post }: { idMap: Record<string, string>; p
               ملف للتحميل
             </label>
             <label className="switch-field">
-              <input name="published" type="checkbox" defaultChecked />
+              <input
+                name="published"
+                type="checkbox"
+                defaultChecked={post ? post.published === 1 : true}
+              />
               <span aria-hidden="true" />
               نشر مباشرة
             </label>
           </div>
-          <button type="submit">نشر الآن</button>
+          <button type="submit">{editing ? "حفظ التعديلات" : "نشر الآن"}</button>
         </div>
       </form>
 

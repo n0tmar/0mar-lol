@@ -76,7 +76,16 @@ function typeLabel(kind: string) {
   return "نص";
 }
 
-function PostCard({ post, idMap, lazy }: { post: FeedPost; idMap: Record<string, string>; lazy?: boolean }) {  const [liked, setLiked] = useState(post.liked);
+function PostCard({
+  post,
+  idMap,
+  lazy,
+}: {
+  post: FeedPost;
+  idMap: Record<string, string>;
+  lazy?: boolean;
+}) {
+  const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [likeBusy, setLikeBusy] = useState(false);
 
@@ -134,7 +143,16 @@ function PostCard({ post, idMap, lazy }: { post: FeedPost; idMap: Record<string,
         <Link href={`/posts/${post.id}`} className="post-media-link">
           <div className="post-media image-media">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/media/${post.id}?v=thumb`} alt={post.title} width={post.width ?? undefined} height={post.height ?? undefined} loading={lazy ? "lazy" : undefined} decoding="async" onContextMenu={(e) => e.preventDefault()} />
+            <img
+              src={`/api/media/${post.id}?v=thumb`}
+              alt={post.title}
+              width={post.width ?? undefined}
+              height={post.height ?? undefined}
+              loading={lazy ? "lazy" : "eager"}
+              fetchPriority={lazy ? "auto" : "high"}
+              decoding="async"
+              onContextMenu={(event) => event.preventDefault()}
+            />
           </div>
         </Link>
       )}
@@ -250,6 +268,7 @@ export function PostFeed({
   idMap,
   total,
   pinned = false,
+  eagerFirst = true,
 }: {
   posts: FeedPost[];
   idMap: Record<string, string>;
@@ -257,6 +276,8 @@ export function PostFeed({
   total?: number;
   /** Pinned sections never paginate. */
   pinned?: boolean;
+  /** Only one feed section should eagerly load its first image. */
+  eagerFirst?: boolean;
 }) {
   const [posts, setPosts] = useState(initialPosts);
   const [loading, setLoading] = useState(false);
@@ -304,7 +325,12 @@ export function PostFeed({
     <>
       <div className="post-feed">
         {posts.map((post, index) => (
-          <PostCard key={post.id} post={post} idMap={idMap} lazy={index > 0} />
+          <PostCard
+            key={post.id}
+            post={post}
+            idMap={idMap}
+            lazy={!eagerFirst || index > 0}
+          />
         ))}
       </div>
       {hasMore && (
