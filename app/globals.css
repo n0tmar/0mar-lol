@@ -292,113 +292,12 @@ main {
   border-color: var(--accent-hover);
 }
 
-.profile-link--icon {
+.profile-link--icon {  
   color: #fff;
 }
 
 .profile-link--icon:hover {
   color: #fff;
-}
-
-.pwa-install__button {
-  margin-top: 12px;
-  display: none;
-  font: inherit;
-}
-
-.pwa-install-dialog {
-  position: fixed;
-  inset: 0;
-  width: min(360px, calc(100% - 32px));
-  max-width: none;
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 0;
-  color: var(--ink);
-  background: transparent;
-  border: 0;
-  overflow-y: auto;
-}
-
-.pwa-install-dialog:not([open]) {
-  display: none;
-}
-
-.pwa-install-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-.pwa-install-dialog__panel {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  color: var(--ink);
-  background: var(--bg-elev);
-  border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
-  text-align: right;
-}
-
-.pwa-install-dialog__icon {
-  width: var(--tap-target);
-  height: var(--tap-target);
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 50%;
-}
-
-.pwa-install-dialog h2 {
-  margin: 16px 0 0;
-  font-size: 20px;
-  line-height: 1.4;
-}
-
-.pwa-install-dialog ol {
-  margin: 14px 0 20px;
-  padding-inline-start: 24px;
-  color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.9;
-}
-
-.pwa-install-dialog li svg {
-  display: inline-block;
-  vertical-align: middle;
-}
-
-.pwa-install-dialog__panel > button {
-  min-height: var(--tap-target);
-  color: var(--accent-ink);
-  background: var(--accent);
-  border: 0;
-  border-radius: var(--radius);
-  font-weight: 600;
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .pwa-install__button--native {
-    display: inline-flex;
-  }
-
-  @supports (-webkit-touch-callout: none) {
-    .pwa-install__button--native {
-      display: none;
-    }
-
-    .pwa-install__button--ios {
-      display: inline-flex;
-    }
-  }
-}
-
-@media (display-mode: standalone) {
-  .pwa-install__button {
-    display: none !important;
-  }
 }
 
 /* Section heading */

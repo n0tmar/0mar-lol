@@ -220,7 +220,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   // accessibility; focus zoom is handled with 16px controls instead.
   const initialHtml = await (await fetch(origin)).text();
   assert.match(initialHtml, /أداة تجريبية/);
-  assert.match(initialHtml, /ثبّت التطبيق/);
+  assert.doesNotMatch(initialHtml, /ثبّت التطبيق/);
   assert.doesNotMatch(initialHtml, /user-scalable=no|maximum-scale=1/);
   const postId = initialHtml.match(/\/api\/media\/([a-f0-9-]+)/)?.[1];
   assert.ok(postId, "file post media url should be visible");
