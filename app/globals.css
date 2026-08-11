@@ -236,6 +236,14 @@ main {
   align-self: center;
 }
 
+/* Desktop: the profile badge scales up with the name; comments keep 15px. */
+@media (min-width: 681px) {
+  .profile h1 .verified-badge {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 .profile-bio {
   max-width: 440px;
   margin: 10px 0 0;
