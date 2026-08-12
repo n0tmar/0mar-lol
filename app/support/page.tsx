@@ -3,7 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Avatar } from "@/components/avatar";
-import { IconExternalLink } from "@/components/icons";
+import { IconExternalLink, IconTikTok } from "@/components/icons";
+import { SupporterAvatar } from "@/components/supporter-avatar";
 import { listVisibleSupporters } from "@/lib/db";
 import { supporterTikTokUrl } from "@/lib/supporters";
 import { SUPPORT_TIERS, supportQrPath } from "@/lib/support-tiers";
@@ -61,9 +62,10 @@ export default async function SupportPage() {
               {supporters.map((supporter) => (
                 <li className="supporter" key={supporter.id}>
                   <span className="supporter__identity">
-                    <span className="supporter__avatar" aria-hidden="true">
-                      {supporter.name.trim().charAt(0) || "•"}
-                    </span>
+                    <SupporterAvatar
+                      supporter={supporter}
+                      className="supporter__avatar"
+                    />
                     <span className="supporter__copy">
                       <strong>{supporter.name}</strong>
                       {supporter.detail && <span>{supporter.detail}</span>}
@@ -76,7 +78,7 @@ export default async function SupportPage() {
                     rel="noopener noreferrer"
                     aria-label={`فتح حساب ${supporter.name} ${supporter.tiktok_handle} على تيك توك`}
                   >
-                    <span className="supporter__platform">TikTok</span>
+                    <IconTikTok size={14} />
                     <bdi>{supporter.tiktok_handle}</bdi>
                     <IconExternalLink size={13} />
                   </a>

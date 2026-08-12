@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { Avatar } from "@/components/avatar";
 import { PostFeed } from "@/components/post-feed";
+import { EmailUpdates } from "@/components/email-updates";
 import { IconPin } from "@/components/icons";
 import { IconDiscord } from "@/components/icons";
 import { VerifiedBadge } from "@/components/verified-badge";
@@ -35,8 +36,12 @@ const MailIcon = () => (
   </svg>
 );
 
-export default async function Home() {
-  const cookieStore = await cookies();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ email_status?: string }>;
+}) {
+  const [cookieStore, params] = await Promise.all([cookies(), searchParams]);
   const visitorId = cookieStore.get("omar_visitor_id")?.value;
 
   const pinnedPosts = listPinnedPosts();
@@ -142,6 +147,8 @@ export default async function Home() {
             eagerFirst={pinned.length === 0}
           />
         </section>
+
+        <EmailUpdates status={params.email_status} />
       </div>
     </main>
   );

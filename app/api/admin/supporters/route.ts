@@ -2,7 +2,11 @@ import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { createSupporter } from "@/lib/db";
-import { parseSupporterInput } from "@/lib/supporters";
+import {
+  parseSupporterInput,
+  validateSupporterAvatarUpload,
+} from "@/lib/supporters";
+import { deleteUploadedFiles, saveSupporterAvatar } from "@/lib/uploads";
 import { dashboardRedirectUrl } from "@/lib/url";
 
 export const runtime = "nodejs";
@@ -36,9 +40,31 @@ export async function POST(request: NextRequest) {
   });
   if (!parsed.ok) return redirectWithError(request, parsed.error);
 
+  const avatarValue = formData.get("avatar");
+  const avatarUpload =
+    avatarValue instanceof File && avatarValue.size > 0 ? avatarValue : null;
+  if (avatarUpload) {
+    const avatarError = validateSupporterAvatarUpload(avatarUpload);
+    if (avatarError) return redirectWithError(request, avatarError);
+  }
+
+  let savedAvatar: Awaited<ReturnType<typeof saveSupporterAvatar>> | null = null;
+  if (avatarUpload) {
+    try {
+      savedAvatar = await saveSupporterAvatar(avatarUpload);
+    } catch (error) {
+      console.error("[supporters] failed to process avatar", error);
+      return redirectWithError(
+        request,
+        "تعذر معالجة صورة الداعم. تأكد أنها صورة سليمة.",
+      );
+    }
+  }
+
   try {
-    createSupporter(parsed.value);
+    createSupporter(parsed.value, savedAvatar?.path ?? null);
   } catch (error) {
+    await deleteUploadedFiles([savedAvatar?.path]);
     console.error("[supporters] failed to create supporter", error);
     const duplicate =
       error instanceof Error &&

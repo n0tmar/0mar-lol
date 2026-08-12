@@ -3,8 +3,9 @@ import "server-only";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { OWNER_NAME } from "./constants";
+import type { EmailSubscriptionRecord } from "./email-subscriptions";
 import type { SupporterInput, SupporterRecord } from "./supporters";
 import { LIKE_KIND, type PostKind, type PostRecord, type CommentRecord } from "./types";
 
@@ -100,10 +101,22 @@ function initialize(database: DatabaseSync) {
       name TEXT NOT NULL,
       tiktok_handle TEXT NOT NULL COLLATE NOCASE UNIQUE,
       detail TEXT NOT NULL DEFAULT '',
+      avatar_path TEXT,
+      avatar_updated_at INTEGER NOT NULL DEFAULT 0,
       visible INTEGER NOT NULL DEFAULT 1 CHECK (visible IN (0, 1)),
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+
+    -- Public email alerts. Full addresses never appear in public site HTML;
+    -- one unguessable token powers each subscriber's opt-out link.
+    CREATE TABLE IF NOT EXISTS email_subscriptions (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      ip_hash TEXT NOT NULL,
+      unsubscribe_token TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL
     );
 
     -- Lightweight migrations for older databases.
@@ -121,6 +134,10 @@ function initialize(database: DatabaseSync) {
       ON push_subscriptions(updated_at DESC);
     CREATE INDEX IF NOT EXISTS supporters_visible_order_idx
       ON supporters(visible, sort_order, created_at);
+    CREATE INDEX IF NOT EXISTS email_subscriptions_created_idx
+      ON email_subscriptions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS email_subscriptions_ip_created_idx
+      ON email_subscriptions(ip_hash, created_at);
   `);
 
   // Migrations: add columns that may be missing in older databases.
@@ -198,6 +215,18 @@ function initialize(database: DatabaseSync) {
       );
   `);
 
+  const supporterColumns = database
+    .prepare("PRAGMA table_info(supporters)")
+    .all() as { name: string }[];
+  if (!supporterColumns.some((c) => c.name === "avatar_path")) {
+    database.exec("ALTER TABLE supporters ADD COLUMN avatar_path TEXT");
+  }
+  if (!supporterColumns.some((c) => c.name === "avatar_updated_at")) {
+    database.exec(
+      "ALTER TABLE supporters ADD COLUMN avatar_updated_at INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+
   const pushColumns = database
     .prepare("PRAGMA table_info(push_subscriptions)")
     .all() as { name: string }[];
@@ -268,7 +297,10 @@ export function getSupporter(id: string): SupporterRecord | undefined {
     .get(id) as SupporterRecord | undefined;
 }
 
-export function createSupporter(input: SupporterInput): string {
+export function createSupporter(
+  input: SupporterInput,
+  avatarPath: string | null = null,
+): string {
   const database = getDatabase();
   const id = randomUUID();
   const now = Date.now();
@@ -281,15 +313,17 @@ export function createSupporter(input: SupporterInput): string {
   database
     .prepare(
       `INSERT INTO supporters (
-        id, name, tiktok_handle, detail, visible, sort_order,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, tiktok_handle, detail, avatar_path, avatar_updated_at,
+        visible, sort_order, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
       input.name,
       input.tiktokHandle,
       input.detail,
+      avatarPath,
+      avatarPath ? now : 0,
       input.visible ? 1 : 0,
       nextOrder,
       now,
@@ -302,18 +336,22 @@ export function updateSupporter(
   id: string,
   input: SupporterInput,
   expectedUpdatedAt: number,
+  avatar: { path: string | null; updatedAt: number },
 ) {
   const updatedAt = Math.max(Date.now(), expectedUpdatedAt + 1);
   return getDatabase()
     .prepare(
       `UPDATE supporters SET
-        name = ?, tiktok_handle = ?, detail = ?, visible = ?, updated_at = ?
+        name = ?, tiktok_handle = ?, detail = ?, avatar_path = ?,
+        avatar_updated_at = ?, visible = ?, updated_at = ?
        WHERE id = ? AND updated_at = ?`,
     )
     .run(
       input.name,
       input.tiktokHandle,
       input.detail,
+      avatar.path,
+      avatar.updatedAt,
       input.visible ? 1 : 0,
       updatedAt,
       id,
@@ -365,6 +403,70 @@ export function moveSupporter(
 
 export function deleteSupporter(id: string) {
   return getDatabase().prepare("DELETE FROM supporters WHERE id = ?").run(id);
+}
+
+export function createEmailSubscription(email: string, ipHash: string): boolean {
+  const result = getDatabase()
+    .prepare(
+      `INSERT OR IGNORE INTO email_subscriptions (
+        id, email, ip_hash, unsubscribe_token, created_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      randomUUID(),
+      email,
+      ipHash,
+      randomBytes(24).toString("base64url"),
+      Date.now(),
+    );
+  return Number(result.changes) === 1;
+}
+
+export function listEmailSubscriptions(): EmailSubscriptionRecord[] {
+  return getDatabase()
+    .prepare(
+      `SELECT id, email, ip_hash, unsubscribe_token, created_at
+       FROM email_subscriptions
+       ORDER BY created_at DESC`,
+    )
+    .all() as EmailSubscriptionRecord[];
+}
+
+export function getEmailSubscriptionByToken(
+  token: string,
+): EmailSubscriptionRecord | undefined {
+  return getDatabase()
+    .prepare(
+      `SELECT id, email, ip_hash, unsubscribe_token, created_at
+       FROM email_subscriptions WHERE unsubscribe_token = ?`,
+    )
+    .get(token) as EmailSubscriptionRecord | undefined;
+}
+
+export function getRecentEmailSubscriptionCount(
+  ipHash: string,
+  since: number,
+): number {
+  return (
+    getDatabase()
+      .prepare(
+        `SELECT COUNT(*) AS count FROM email_subscriptions
+         WHERE ip_hash = ? AND created_at >= ?`,
+      )
+      .get(ipHash, since) as { count: number }
+  ).count;
+}
+
+export function deleteEmailSubscription(id: string) {
+  return getDatabase()
+    .prepare("DELETE FROM email_subscriptions WHERE id = ?")
+    .run(id);
+}
+
+export function deleteEmailSubscriptionByToken(token: string) {
+  return getDatabase()
+    .prepare("DELETE FROM email_subscriptions WHERE unsubscribe_token = ?")
+    .run(token);
 }
 
 export function listPublishedPosts(): PostRecord[] {
@@ -574,11 +676,13 @@ export function createPost(input: {
 }
 
 export function setPostPublished(id: string, published: boolean) {
+  const value = published ? 1 : 0;
   return getDatabase()
     .prepare(
-      "UPDATE posts SET published = ?, updated_at = MAX(updated_at + 1, ?) WHERE id = ?",
+      `UPDATE posts SET published = ?, updated_at = MAX(updated_at + 1, ?)
+       WHERE id = ? AND published <> ?`,
     )
-    .run(published ? 1 : 0, Date.now(), id);
+    .run(value, Date.now(), id, value);
 }
 
 export function setPostPinned(id: string, pinned: boolean) {

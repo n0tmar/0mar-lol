@@ -1,7 +1,7 @@
 import { dashboardRedirectUrl } from "@/lib/url";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import {
   deletePost,
@@ -10,6 +10,7 @@ import {
   setPostPinned,
   setPostPublished,
 } from "@/lib/db";
+import { sendNewPostEmailNotification } from "@/lib/email-notifications";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,20 @@ export async function POST(
     return NextResponse.redirect(dashboardRedirectUrl(request, "?error=missing"), 303);
   }
 
-  if (action === "publish") setPostPublished(id, true);
+  if (action === "publish") {
+    const result = setPostPublished(id, true);
+    // Atomic state transition: concurrent/repeated publish clicks can schedule
+    // at most one notification batch.
+    if (Number(result.changes) === 1) {
+      after(async () => {
+        try {
+          await sendNewPostEmailNotification({ id, title: post.title });
+        } catch (error) {
+          console.error("[email-notifications] failed to send new post", error);
+        }
+      });
+    }
+  }
   if (action === "unpublish") setPostPublished(id, false);
   if (action === "pin") setPostPinned(id, true);
   if (action === "unpin") setPostPinned(id, false);

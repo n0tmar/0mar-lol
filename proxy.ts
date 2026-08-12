@@ -9,8 +9,9 @@ import {
  * Host-based routing (Next 16 proxy, Node.js runtime by default).
  *
  * - dashboard.0mar.lol (DASHBOARD_HOST): dashboard routes live at the root —
- *   "/" renders the posts panel; "/comments", "/supporters", "/new",
- *   "/edit/:id" and "/login" map to their /dashboard/* pages. Legacy
+ *   "/" renders the posts panel; "/comments", "/supporters",
+ *   "/subscribers", "/new", "/edit/:id" and "/login" map to their
+ *   /dashboard/* pages. Legacy
  *   /dashboard/* URLs are permanently redirected to the clean root URLs, and
  *   anything that is not
  *   a dashboard route goes back to the public site.
@@ -46,6 +47,7 @@ export function proxy(request: NextRequest) {
     if (pathname === "/login") return rewriteTo(request, "/dashboard/login");
     if (pathname === "/comments") return rewriteTo(request, "/dashboard/comments");
     if (pathname === "/supporters") return rewriteTo(request, "/dashboard/supporters");
+    if (pathname === "/subscribers") return rewriteTo(request, "/dashboard/subscribers");
     if (pathname === "/new") return rewriteTo(request, "/dashboard/new");
     if (pathname.startsWith("/edit/")) {
       return rewriteTo(request, `/dashboard${pathname}`);

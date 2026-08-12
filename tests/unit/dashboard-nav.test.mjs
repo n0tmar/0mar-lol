@@ -13,6 +13,7 @@ test("public host: tabs keep the /dashboard prefix", () => {
   assert.equal(dashboardTabHref("new", MAIN), "/dashboard/new");
   assert.equal(dashboardTabHref("comments", MAIN), "/dashboard/comments");
   assert.equal(dashboardTabHref("supporters", MAIN), "/dashboard/supporters");
+  assert.equal(dashboardTabHref("subscribers", MAIN), "/dashboard/subscribers");
 });
 
 test("dashboard subdomain: tabs live at the root", () => {
@@ -20,6 +21,7 @@ test("dashboard subdomain: tabs live at the root", () => {
   assert.equal(dashboardTabHref("new", SUBDOMAIN), "/new");
   assert.equal(dashboardTabHref("comments", SUBDOMAIN), "/comments");
   assert.equal(dashboardTabHref("supporters", SUBDOMAIN), "/supporters");
+  assert.equal(dashboardTabHref("subscribers", SUBDOMAIN), "/subscribers");
 });
 
 test("public host: active tab detection", () => {
@@ -33,6 +35,10 @@ test("public host: active tab detection", () => {
     isDashboardTabActive("/dashboard/supporters", "supporters", MAIN),
     true,
   );
+  assert.equal(
+    isDashboardTabActive("/dashboard/subscribers", "subscribers", MAIN),
+    true,
+  );
   assert.equal(isDashboardTabActive("/dashboard", "new", MAIN), false);
 });
 
@@ -44,6 +50,7 @@ test("dashboard subdomain: active tab detection", () => {
   assert.equal(isDashboardTabActive("/new", "new", SUBDOMAIN), true);
   assert.equal(isDashboardTabActive("/comments", "comments", SUBDOMAIN), true);
   assert.equal(isDashboardTabActive("/supporters", "supporters", SUBDOMAIN), true);
+  assert.equal(isDashboardTabActive("/subscribers", "subscribers", SUBDOMAIN), true);
   assert.equal(isDashboardTabActive("/", "new", SUBDOMAIN), false);
   assert.equal(isDashboardTabActive("/dashboard", "posts", SUBDOMAIN), false);
 });

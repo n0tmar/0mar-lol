@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
 import { ConfirmDelete } from "@/components/confirm-delete";
-import { IconExternalLink } from "@/components/icons";
+import { IconExternalLink, IconImage } from "@/components/icons";
+import { SupporterAvatar } from "@/components/supporter-avatar";
+import { SupporterAvatarPicker } from "@/components/supporter-avatar-picker";
 import { requireAdmin } from "@/lib/auth";
 import { publicSiteRoot } from "@/lib/dashboard-host";
 import { listDashboardSupporters } from "@/lib/db";
+import {
+  SUPPORTER_AVATAR_ACCEPT,
+  type SupporterRecord,
+} from "@/lib/supporters";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +17,37 @@ export const metadata: Metadata = {
   title: "الداعمين",
   robots: { index: false, follow: false },
 };
+
+function AvatarUploadField({ supporter }: { supporter?: SupporterRecord }) {
+  const inputId = supporter ? `supporter-avatar-${supporter.id}` : "supporter-avatar-new";
+
+  return (
+    <div className="dash-supporter-form__avatar">
+      <label htmlFor={inputId}>صورة الداعم</label>
+      <div className="dash-supporter-avatar-upload">
+        {supporter ? (
+          <SupporterAvatar
+            supporter={supporter}
+            className="dash-supporter-avatar-preview"
+            size={46}
+          />
+        ) : (
+          <span className="dash-supporter-avatar-preview" aria-hidden="true">
+            <IconImage size={18} />
+          </span>
+        )}
+        <SupporterAvatarPicker id={inputId} accept={SUPPORTER_AVATAR_ACCEPT} />
+      </div>
+      <small>اختيارية · تُقص مربعاً وتحفظ WebP · حتى 5 ميجابايت</small>
+      {supporter?.avatar_path && (
+        <label className="dash-supporter-avatar-remove">
+          <input type="checkbox" name="remove_avatar" />
+          <span>حذف الصورة الحالية</span>
+        </label>
+      )}
+    </div>
+  );
+}
 
 export default async function DashboardSupportersPage({
   searchParams,
@@ -80,6 +117,7 @@ export default async function DashboardSupportersPage({
           className="dash-supporter-form"
           action="/api/admin/supporters"
           method="post"
+          encType="multipart/form-data"
         >
           <label>
             <span>اسم الداعم</span>
@@ -104,6 +142,7 @@ export default async function DashboardSupportersPage({
               placeholder="@username أو رابط الحساب"
             />
           </label>
+          <AvatarUploadField />
           <label className="dash-supporter-form__detail">
             <span>التفاصيل</span>
             <textarea
@@ -142,9 +181,10 @@ export default async function DashboardSupportersPage({
                 key={supporter.id}
               >
                 <summary>
-                  <span className="dash-supporter-card__avatar" aria-hidden="true">
-                    {supporter.name.trim().charAt(0) || "•"}
-                  </span>
+                  <SupporterAvatar
+                    supporter={supporter}
+                    className="dash-supporter-card__avatar"
+                  />
                   <span className="dash-supporter-card__identity">
                     <strong>{supporter.name}</strong>
                     <bdi>{supporter.tiktok_handle}</bdi>
@@ -168,6 +208,7 @@ export default async function DashboardSupportersPage({
                     className="dash-supporter-form"
                     action={`/api/admin/supporters/${supporter.id}`}
                     method="post"
+                    encType="multipart/form-data"
                   >
                     <input type="hidden" name="action" value="update" />
                     <input
@@ -198,6 +239,7 @@ export default async function DashboardSupportersPage({
                         dir="ltr"
                       />
                     </label>
+                    <AvatarUploadField supporter={supporter} />
                     <label className="dash-supporter-form__detail">
                       <span>التفاصيل</span>
                       <textarea

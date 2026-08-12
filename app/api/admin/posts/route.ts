@@ -1,7 +1,8 @@
 import { dashboardRedirectUrl } from "@/lib/url";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { createPost, type PostKind } from "@/lib/db";
+import { sendNewPostEmailNotification } from "@/lib/email-notifications";
 import {
   deleteUploadedFiles,
   saveUpload,
@@ -94,8 +95,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let postId: string;
   try {
-    createPost({
+    postId = createPost({
       kind,
       title,
       body,
@@ -117,6 +119,16 @@ export async function POST(request: NextRequest) {
     await deleteUploadedFiles(createdFiles);
     console.error("[posts] failed to create post", error);
     return fail(request, "تعذر حفظ المنشور. حاول مرة أخرى.");
+  }
+
+  if (published) {
+    after(async () => {
+      try {
+        await sendNewPostEmailNotification({ id: postId, title });
+      } catch (error) {
+        console.error("[email-notifications] failed to send new post", error);
+      }
+    });
   }
 
   return NextResponse.redirect(dashboardRedirectUrl(request, "?created=1"), 303);

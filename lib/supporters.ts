@@ -1,10 +1,17 @@
 export type TikTokHandle = `@${string}`;
 
+export const SUPPORTER_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const SUPPORTER_AVATAR_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/avif,image/gif";
+const SUPPORTER_AVATAR_TYPES = new Set(SUPPORTER_AVATAR_ACCEPT.split(","));
+
 export type SupporterRecord = {
   id: string;
   name: string;
   tiktok_handle: TikTokHandle;
   detail: string;
+  avatar_path: string | null;
+  avatar_updated_at: number;
   visible: number;
   sort_order: number;
   created_at: number;
@@ -78,6 +85,25 @@ export function parseSupporterInput(
       visible: candidate.visible,
     },
   };
+}
+
+export function validateSupporterAvatarUpload(
+  upload: Pick<File, "size" | "type">,
+): string | null {
+  if (upload.size > SUPPORTER_AVATAR_MAX_BYTES) {
+    return "حجم صورة الداعم أكبر من 5 ميجابايت.";
+  }
+  if (!SUPPORTER_AVATAR_TYPES.has(upload.type.toLowerCase())) {
+    return "صيغة صورة الداعم غير مدعومة. استخدم JPG أو PNG أو WebP أو AVIF أو GIF.";
+  }
+  return null;
+}
+
+export function supporterAvatarUrl(
+  supporter: Pick<SupporterRecord, "id" | "avatar_path" | "avatar_updated_at">,
+): string | null {
+  if (!supporter.avatar_path) return null;
+  return `/api/supporters/${encodeURIComponent(supporter.id)}/avatar?v=${supporter.avatar_updated_at}`;
 }
 
 export function supporterTikTokUrl(handle: string) {

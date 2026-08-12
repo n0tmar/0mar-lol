@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-// Payment links (Ziina) — order: Supporter → Sponsor.
+// Payment links (Ziina) — order: Supporter → Main Sponsor.
 // Displayed prices are SAR; links charge in AED (Ziina).
 export const SUPPORT_QR_FOREGROUND = "#d4825a";
 export const SUPPORT_QR_BACKGROUND = "#ffffff";
@@ -20,7 +20,7 @@ export const SUPPORT_TIERS = [
     id: "coffee",
     name: "دعم قهوة",
     en: "Coffee Support",
-    desc: "اشتر لي قهوة",
+    desc: "قهوة منك تخلّي وقت الشغل ألطف",
     usd: 5,
     sar: 18.75,
     url: "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
@@ -29,15 +29,15 @@ export const SUPPORT_TIERS = [
     id: "project",
     name: "دعم مشروع",
     en: "Project Support",
-    desc: "يساعدني أشتغل على أدوات ومشاريع جديدة",
+    desc: "يساعدني أحوّل فكرة جديدة إلى مشروع",
     usd: 10,
     sar: 37.5,
     url: "https://pay.ziina.com/martools/7TkpdSEfe?source=app",
   },
   {
     id: "big",
-    name: "داعم كبير",
-    en: "Big Supporter",
+    name: "شريك محتوى",
+    en: "Content Partner",
     desc: "شريك حقيقي في المحتوى، الله يسعدك",
     usd: 25,
     sar: 93.75,
@@ -45,12 +45,21 @@ export const SUPPORT_TIERS = [
   },
   {
     id: "sponsor",
-    name: "راعي",
-    en: "Sponsor",
+    name: "راعي رسمي",
+    en: "Official Sponsor",
     desc: "الراعي الرسمي، شكر خاص من القلب",
     usd: 50,
     sar: 187.5,
     url: "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
+  },
+  {
+    id: "main-sponsor",
+    name: "راعي رئيسي",
+    en: "Main Sponsor",
+    desc: "أكبر دعم للمحتوى والمشاريع، الله يجزاك خير",
+    usd: 100,
+    sar: 375,
+    url: "https://pay.ziina.com/martools/X8VuLPhx3?source=app",
   },
 ] as const;
 

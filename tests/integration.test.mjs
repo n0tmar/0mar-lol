@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createECDH, randomBytes } from "node:crypto";
 import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
-import { request as httpRequest } from "node:http";
+import {
+  createServer as createHttpServer,
+  request as httpRequest,
+} from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import sharp from "sharp";
 import webpush from "web-push";
 
 const port = 3199;
@@ -55,7 +59,7 @@ function fetchWithHost(pathname, { host, cookie, method = "GET", body, contentTy
   });
 }
 
-function startServer(dataDirectory) {
+function startServer(dataDirectory, resendApiUrl) {
   return spawn(
     process.execPath,
     [
@@ -76,6 +80,9 @@ function startServer(dataDirectory) {
         VAPID_PUBLIC_KEY: vapidKeys.publicKey,
         VAPID_PRIVATE_KEY: vapidKeys.privateKey,
         VAPID_SUBJECT: "mailto:test@example.com",
+        RESEND_API_KEY: "test-resend-api-key",
+        EMAIL_FROM: "0mar.lol <updates@0mar.test>",
+        RESEND_API_URL: resendApiUrl,
         PUBLIC_HOST: "0mar.test",
         DASHBOARD_HOST: "dashboard.0mar.test",
       },
@@ -100,7 +107,28 @@ async function waitForServer() {
 test("publishing, likes, downloads, comments and media work together", async (t) => {
   // Fresh empty data directory — the site must work from zero.
   const dataDirectory = mkdtempSync(path.join(tmpdir(), "omar-site-test-"));
-  let server = startServer(dataDirectory);
+  const emailRequests = [];
+  const resendMock = createHttpServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      emailRequests.push({
+        method: request.method,
+        url: request.url,
+        headers: request.headers,
+        body: Buffer.concat(chunks).toString("utf8"),
+      });
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ data: [{ id: "email-test-id" }] }));
+    });
+  });
+  await new Promise((resolve) => resendMock.listen(0, "127.0.0.1", resolve));
+  const resendAddress = resendMock.address();
+  assert.equal(typeof resendAddress, "object");
+  const resendApiUrl = `http://127.0.0.1:${resendAddress.port}/emails/batch`;
+  t.after(() => resendMock.close());
+
+  let server = startServer(dataDirectory, resendApiUrl);
   t.after(() => server.kill("SIGTERM"));
   await waitForServer();
 
@@ -123,6 +151,9 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   // RSC payloads must never be cached — cached copies made client
   // navigations show stale content until a full refresh.
   assert.match(swSource, /RSC/);
+  assert.match(swSource, /IS_DASHBOARD_HOST/);
+  assert.match(swSource, /if \(!IS_DASHBOARD_HOST\)/);
+  assert.match(swSource, /url\.pathname === "\/unsubscribe"/);
 
   // Desktop support cards expose one local orange QR per exact payment link,
   // plus a native no-JS popover using the same cached asset.
@@ -142,6 +173,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     "https://pay.ziina.com/martools/7TkpdSEfe?source=app",
     "https://pay.ziina.com/martools/XkC__PHhG?source=app",
     "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
+    "https://pay.ziina.com/martools/X8VuLPhx3?source=app",
   ];
   for (const paymentLink of paymentLinks) {
     assert.ok(supportHtml.includes(`href="${paymentLink}"`));
@@ -151,6 +183,8 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     /على الكمبيوتر؟ امسح رمز الباقة بكاميرا جوالك/,
   );
   assert.match(supportHtml, /support-qr-popover/);
+  assert.match(supportHtml, /راعي رئيسي/);
+  assert.match(supportHtml, /375/);
   const renderedQrPaths = [
     ...supportHtml.matchAll(/src="(\/qr\/support-[^"]+\.svg)"/g),
   ].map((match) => match[1]);
@@ -169,6 +203,13 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     assert.match(qrSvg, /<svg shape-rendering="crispEdges"/);
     assert.match(qrSvg, /fill="#d4825a"/);
   }
+
+  // End-of-feed email signup uses a native popup: no new client island.
+  const emptyHomeHtml = await (await fetch(origin)).text();
+  assert.match(emptyHomeHtml, /id="email-updates"/);
+  assert.match(emptyHomeHtml, /popover="auto"/);
+  assert.match(emptyHomeHtml, /فعّل تنبيهات البريد/);
+  assert.match(emptyHomeHtml, /action="\/api\/subscriptions"/);
 
   // Custom 404 page for unmatched routes.
   const notFound = await fetch(`${origin}/no-such-page`);
@@ -200,6 +241,64 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     adminCookie.startsWith("omar_admin_session="),
     JSON.stringify(Object.fromEntries(loginResponse.headers)),
   );
+
+  // Public email subscriptions validate, deduplicate, ignore bots, and stay
+  // visible only inside the authenticated dashboard.
+  const signedOutSubscribers = await fetch(`${origin}/dashboard/subscribers`, {
+    redirect: "manual",
+  });
+  assert.equal(signedOutSubscribers.status, 307);
+  assert.match(
+    signedOutSubscribers.headers.get("location") || "",
+    /\/dashboard\/login$/,
+  );
+
+  async function submitEmail(values) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(values)) form.set(key, value);
+    return fetch(`${origin}/api/subscriptions`, {
+      method: "POST",
+      body: form,
+      redirect: "manual",
+      headers: { Origin: origin },
+    });
+  }
+
+  const invalidEmail = await submitEmail({ email: "not-an-email" });
+  assert.equal(invalidEmail.status, 303);
+  assert.match(
+    invalidEmail.headers.get("location") || "",
+    /email_status=invalid#email-updates$/,
+  );
+
+  const botEmail = await submitEmail({
+    email: "bot@example.com",
+    website: "https://spam.example",
+  });
+  assert.equal(botEmail.status, 303);
+
+  const validEmail = await submitEmail({ email: " Reader+Posts@Example.COM " });
+  assert.equal(validEmail.status, 303);
+  assert.match(
+    validEmail.headers.get("location") || "",
+    /email_status=subscribed#email-updates$/,
+  );
+  const duplicateEmail = await submitEmail({ email: "reader+posts@example.com" });
+  assert.equal(duplicateEmail.status, 303);
+
+  const subscribersDashboard = await fetch(`${origin}/dashboard/subscribers`, {
+    headers: { Cookie: adminCookie },
+  });
+  assert.equal(subscribersDashboard.status, 200);
+  const subscribersDashboardHtml = await subscribersDashboard.text();
+  assert.match(subscribersDashboardHtml, /reader\+posts@example\.com/);
+  assert.doesNotMatch(subscribersDashboardHtml, /bot@example\.com/);
+  assert.match(subscribersDashboardHtml, /الإرسال التلقائي مفعّل/);
+  const subscriptionIds = [
+    ...subscribersDashboardHtml.matchAll(/data-subscription-id="([a-f0-9-]+)"/g),
+  ].map((match) => match[1]);
+  assert.equal(subscriptionIds.length, 1, "duplicate email should stay one row");
+  const [emailSubscriptionId] = subscriptionIds;
 
   // Push subscriptions are admin-only, validated, persisted, and removable.
   const pushSubscription = {
@@ -276,6 +375,25 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   });
   assert.equal(createFile.status, 303);
 
+  for (let attempt = 0; attempt < 50 && emailRequests.length === 0; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(emailRequests.length, 1, "publishing should trigger one email batch");
+  const emailRequest = emailRequests[0];
+  assert.equal(emailRequest.method, "POST");
+  assert.equal(emailRequest.url, "/emails/batch");
+  assert.equal(emailRequest.headers.authorization, "Bearer test-resend-api-key");
+  assert.match(emailRequest.headers["idempotency-key"] || "", /^post-[a-f0-9-]+-0$/);
+  const emailBatch = JSON.parse(emailRequest.body);
+  assert.equal(emailBatch.length, 1);
+  assert.deepEqual(emailBatch[0].to, ["reader+posts@example.com"]);
+  assert.match(emailBatch[0].subject, /أداة تجريبية/);
+  assert.match(emailBatch[0].headers["List-Unsubscribe"], /unsubscribe/);
+  assert.equal(
+    emailBatch[0].headers["List-Unsubscribe-Post"],
+    "List-Unsubscribe=One-Click",
+  );
+
   // The post is live on the home feed. Mobile zoom remains available for
   // accessibility; focus zoom is handled with 16px controls instead.
   const initialHtml = await (await fetch(origin)).text();
@@ -285,6 +403,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.doesNotMatch(initialHtml, /user-scalable=no|maximum-scale=1/);
   const postId = initialHtml.match(/\/api\/media\/([a-f0-9-]+)/)?.[1];
   assert.ok(postId, "file post media url should be visible");
+  assert.match(emailBatch[0].html, new RegExp(`/posts/${postId}`));
 
   // Range requests work.
   const range = await fetch(`${origin}/api/media/${postId}`, {
@@ -381,7 +500,10 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     headers: { Cookie: adminCookie },
   });
   assert.equal(supportersDashboard.status, 200);
-  assert.match(await supportersDashboard.text(), /إضافة داعم/);
+  const initialSupportersDashboardHtml = await supportersDashboard.text();
+  assert.match(initialSupportersDashboardHtml, /إضافة داعم/);
+  assert.match(initialSupportersDashboardHtml, /name="avatar"/);
+  assert.match(initialSupportersDashboardHtml, /multipart\/form-data/);
 
   const signedOutSupporters = await fetch(`${origin}/dashboard/supporters`, {
     redirect: "manual",
@@ -418,11 +540,13 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     });
   }
 
+  const supporterFilesBefore = readdirSync(path.join(dataDirectory, "uploads")).length;
   const firstSupporter = await submitSupporter("/api/admin/supporters", {
     name: "داعم أول",
     tiktok: "@first_supporter",
     detail: "دعم المحتوى من البداية",
     visible: "on",
+    avatar: new Blob([png], { type: "image/png" }),
   });
   assert.equal(firstSupporter.status, 303);
   assert.match(
@@ -437,12 +561,35 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     visible: "on",
   });
   assert.equal(secondSupporter.status, 303);
+  assert.equal(
+    readdirSync(path.join(dataDirectory, "uploads")).length,
+    supporterFilesBefore + 1,
+    "supporter avatar stores one optimized file, not the original",
+  );
 
   let publicSupportHtml = await (await fetch(`${origin}/support`)).text();
   assert.match(publicSupportHtml, /داعم أول/);
   assert.match(publicSupportHtml, /@first_supporter/);
   assert.match(publicSupportHtml, /داعم ثاني/);
   assert.match(publicSupportHtml, /@second\.supporter/);
+  assert.match(publicSupportHtml, /M12\.525\.02c1\.31/);
+  assert.doesNotMatch(publicSupportHtml, />TikTok</);
+  const firstAvatarUrl = publicSupportHtml.match(
+    /src="(\/api\/supporters\/[a-f0-9-]+\/avatar\?v=\d+)"/,
+  )?.[1];
+  assert.ok(firstAvatarUrl, "custom supporter avatar should render publicly");
+  const firstAvatarResponse = await fetch(`${origin}${firstAvatarUrl}`);
+  assert.equal(firstAvatarResponse.status, 200);
+  assert.equal(firstAvatarResponse.headers.get("content-type"), "image/webp");
+  assert.match(
+    firstAvatarResponse.headers.get("cache-control") || "",
+    /max-age=31536000, immutable/,
+  );
+  const firstAvatarBytes = Buffer.from(await firstAvatarResponse.arrayBuffer());
+  const firstAvatarMetadata = await sharp(firstAvatarBytes).metadata();
+  assert.equal(firstAvatarMetadata.format, "webp");
+  assert.equal(firstAvatarMetadata.width, 192);
+  assert.equal(firstAvatarMetadata.height, 192);
   assert.ok(
     publicSupportHtml.indexOf("داعم أول") <
       publicSupportHtml.indexOf("داعم ثاني"),
@@ -468,6 +615,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(supporterIds.length, 2);
   assert.equal(supporterRevisions.length, 2);
   const [firstSupporterId, secondSupporterId] = supporterIds;
+  assert.match(firstAvatarUrl, new RegExp(`/api/supporters/${firstSupporterId}/avatar`));
 
   // Editing can hide a supporter from the public wall.
   const hideSupporter = await submitSupporter(
@@ -488,8 +636,19 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   publicSupportHtml = await (await fetch(`${origin}/support`)).text();
   assert.doesNotMatch(publicSupportHtml, /داعم أول معدل/);
   assert.match(publicSupportHtml, /داعم ثاني/);
+  const hiddenAvatar = await fetch(`${origin}${firstAvatarUrl}`);
+  assert.equal(hiddenAvatar.status, 404);
+  const hiddenAvatarForAdmin = await fetch(`${origin}${firstAvatarUrl}`, {
+    headers: { Cookie: adminCookie },
+  });
+  assert.equal(hiddenAvatarForAdmin.status, 200);
+  assert.match(
+    hiddenAvatarForAdmin.headers.get("cache-control") || "",
+    /private, no-store/,
+  );
 
-  // Re-enable the supporter using the fresh optimistic revision.
+  // Re-enable the supporter using the fresh optimistic revision and replace
+  // the avatar. The old optimized file is removed only after the DB commit.
   supportersDashboardHtml = await (
     await fetch(`${origin}/dashboard/supporters`, {
       headers: { Cookie: adminCookie },
@@ -509,9 +668,26 @@ test("publishing, likes, downloads, comments and media work together", async (t)
       tiktok: "@first_supporter",
       detail: "تفاصيل محدثة ظاهرة للزوار",
       visible: "on",
+      avatar: new Blob([png], { type: "image/png" }),
     },
   );
   assert.equal(showSupporter.status, 303);
+  publicSupportHtml = await (await fetch(`${origin}/support`)).text();
+  const replacementAvatarUrl = publicSupportHtml.match(
+    new RegExp(`src="(/api/supporters/${firstSupporterId}/avatar\\?v=\\d+)"`),
+  )?.[1];
+  assert.ok(replacementAvatarUrl);
+  assert.notEqual(replacementAvatarUrl, firstAvatarUrl);
+  assert.equal(
+    (await fetch(`${origin}${firstAvatarUrl}`)).status,
+    404,
+    "stale immutable avatar revisions must not serve replacement bytes",
+  );
+  assert.equal(
+    readdirSync(path.join(dataDirectory, "uploads")).length,
+    supporterFilesBefore + 1,
+    "avatar replacement removes old bytes after commit",
+  );
 
   // Move the second supporter above the first.
   const moveSupporter = await submitSupporter(
@@ -540,6 +716,15 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   publicSupportHtml = await (await fetch(`${origin}/support`)).text();
   assert.doesNotMatch(publicSupportHtml, /داعم أول معدل|داعم ثاني/);
   assert.match(publicSupportHtml, /تظهر هنا حسابات الداعمين وتفاصيلهم/);
+  assert.equal(
+    readdirSync(path.join(dataDirectory, "uploads")).length,
+    supporterFilesBefore,
+    "deleting supporter removes its custom avatar",
+  );
+  assert.equal(
+    (await fetch(`${origin}${replacementAvatarUrl}`)).status,
+    404,
+  );
 
   // Host-based routing (PUBLIC_HOST / DASHBOARD_HOST): the dashboard lives
   // on its own subdomain, at the root.
@@ -569,6 +754,15 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(
     movedSupporters.headers.location,
     `https://${dashboardHost}/supporters`,
+  );
+
+  const movedSubscribers = await fetchWithHost("/dashboard/subscribers", {
+    host: publicHost,
+  });
+  assert.equal(movedSubscribers.status, 308);
+  assert.equal(
+    movedSubscribers.headers.location,
+    `https://${dashboardHost}/subscribers`,
   );
 
   // Subdomain root serves the dashboard (signed in).
@@ -605,6 +799,13 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(subSupporters.status, 200);
   assert.match(await subSupporters.text(), /إضافة داعم/);
 
+  const subSubscribers = await fetchWithHost("/subscribers", {
+    host: dashboardHost,
+    cookie: adminCookie,
+  });
+  assert.equal(subSubscribers.status, 200);
+  assert.match(await subSubscribers.text(), /reader\+posts@example\.com/);
+
   // Legacy /dashboard/* URLs on the subdomain redirect to clean root URLs.
   const legacySubdomainUrl = await fetchWithHost("/dashboard/comments", {
     host: dashboardHost,
@@ -635,6 +836,29 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     body: JSON.stringify(pushSubscription),
   });
   assert.equal(subdomainPush.status, 201);
+
+  const deleteEmailForm = new FormData();
+  deleteEmailForm.set("action", "delete");
+  const deleteEmail = await fetch(
+    `${origin}/api/admin/subscribers/${emailSubscriptionId}`,
+    {
+      method: "POST",
+      body: deleteEmailForm,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    },
+  );
+  assert.equal(deleteEmail.status, 303);
+  assert.match(
+    deleteEmail.headers.get("location") || "",
+    /\/dashboard\/subscribers\?deleted=1$/,
+  );
+  const subscribersAfterDelete = await (
+    await fetch(`${origin}/dashboard/subscribers`, {
+      headers: { Cookie: adminCookie },
+    })
+  ).text();
+  assert.doesNotMatch(subscribersAfterDelete, /reader\+posts@example\.com/);
 
   const deleteForm = new FormData();
   deleteForm.set("action", "delete");
@@ -741,6 +965,25 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   });
   assert.equal(createDraft.status, 303);
 
+  const persistentSupporter = await submitSupporter("/api/admin/supporters", {
+    name: "داعم محفوظ",
+    tiktok: "@saved_supporter",
+    detail: "صورته تبقى بعد إعادة التشغيل",
+    visible: "on",
+    avatar: new Blob([png], { type: "image/png" }),
+  });
+  assert.equal(persistentSupporter.status, 303);
+  const supportBeforeRestart = await (await fetch(`${origin}/support`)).text();
+  const persistentAvatarUrl = supportBeforeRestart.match(
+    /src="(\/api\/supporters\/[a-f0-9-]+\/avatar\?v=\d+)"/,
+  )?.[1];
+  assert.ok(persistentAvatarUrl);
+
+  const unsubscribeSignup = await submitEmail({
+    email: "leave-me@example.com",
+  });
+  assert.equal(unsubscribeSignup.status, 303);
+
   const strayFile = "stray-orphan.bin";
   writeFileSync(path.join(uploadsDir, strayFile), "junk");
 
@@ -761,6 +1004,18 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   const legacyDatabase = new DatabaseSync(
     path.join(dataDirectory, "omar-resources.sqlite"),
   );
+  const unsubscribeRow = legacyDatabase
+    .prepare(
+      "SELECT unsubscribe_token FROM email_subscriptions WHERE email = ?",
+    )
+    .get("leave-me@example.com");
+  assert.ok(unsubscribeRow?.unsubscribe_token);
+  const unsubscribeToken = unsubscribeRow.unsubscribe_token;
+  const draftRow = legacyDatabase
+    .prepare("SELECT id FROM posts WHERE title = ?")
+    .get("مسودة بحاجة حفظ");
+  assert.ok(draftRow?.id);
+  const draftPostId = draftRow.id;
   legacyDatabase
     .prepare(
       `INSERT INTO posts
@@ -779,7 +1034,7 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     );
   legacyDatabase.close();
 
-  server = startServer(dataDirectory);
+  server = startServer(dataDirectory, resendApiUrl);
   await waitForServer();
 
   const filesAfterRestart = readdirSync(uploadsDir);
@@ -803,6 +1058,70 @@ test("publishing, likes, downloads, comments and media work together", async (t)
     file_path: `uploads/${legacyTextFile}`,
     file_name: "legacy.zip",
   });
+
+  const avatarAfterRestart = await fetch(`${origin}${persistentAvatarUrl}`);
+  assert.equal(avatarAfterRestart.status, 200);
+  assert.equal(avatarAfterRestart.headers.get("content-type"), "image/webp");
+
+  const publishDraftForm = new FormData();
+  publishDraftForm.set("action", "publish");
+  const publishDraft = await fetch(
+    `${origin}/api/admin/posts/${draftPostId}`,
+    {
+      method: "POST",
+      body: publishDraftForm,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    },
+  );
+  assert.equal(publishDraft.status, 303);
+  for (let attempt = 0; attempt < 50 && emailRequests.length < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(emailRequests.length, 2);
+  const draftBatch = JSON.parse(emailRequests[1].body);
+  assert.deepEqual(draftBatch[0].to, ["leave-me@example.com"]);
+  assert.match(draftBatch[0].subject, /مسودة بحاجة حفظ/);
+
+  // Repeated publish clicks are an atomic no-op and cannot send twice.
+  const repeatPublish = await fetch(
+    `${origin}/api/admin/posts/${draftPostId}`,
+    {
+      method: "POST",
+      body: publishDraftForm,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    },
+  );
+  assert.equal(repeatPublish.status, 303);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(emailRequests.length, 2);
+
+  const unsubscribePageResponse = await fetch(
+    `${origin}/unsubscribe?token=${unsubscribeToken}`,
+  );
+  assert.match(
+    unsubscribePageResponse.headers.get("cache-control") || "",
+    /no-store/,
+  );
+  const unsubscribePage = await unsubscribePageResponse.text();
+  assert.match(unsubscribePage, /le\*\*\*@example\.com/);
+  assert.match(unsubscribePage, /name="referrer" content="no-referrer"/);
+  const unsubscribeForm = new FormData();
+  unsubscribeForm.set("token", unsubscribeToken);
+  const unsubscribeResponse = await fetch(
+    `${origin}/api/subscriptions/unsubscribe`,
+    { method: "POST", body: unsubscribeForm, redirect: "manual" },
+  );
+  assert.equal(unsubscribeResponse.status, 303);
+  assert.match(
+    unsubscribeResponse.headers.get("location") || "",
+    /\/unsubscribe\?done=1$/,
+  );
+  assert.match(
+    await (await fetch(`${origin}/unsubscribe?done=1`)).text(),
+    /تم إلغاء الاشتراك/,
+  );
 
   const migratedDownload = await fetch(
     `${origin}/api/media/${legacyTextId}?download=1`,

@@ -1,11 +1,16 @@
 /* 0mar.lol service worker — public-page caching plus admin Web Push. */
 const STATIC_PREFIX = "/_next/static/";
-const CACHE = "omar-v2";
+const CACHE = "omar-v3";
 const OFFLINE_URL = "/";
+const IS_DASHBOARD_HOST = self.location.hostname.startsWith("dashboard.");
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll([OFFLINE_URL])));
+  // Dashboard service worker exists only for admin Web Push. Never persist
+  // authenticated HTML or hidden supporter avatars in Cache Storage.
+  if (!IS_DASHBOARD_HOST) {
+    event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll([OFFLINE_URL])));
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -96,7 +101,11 @@ self.addEventListener("fetch", (event) => {
   ) {
     return;
   }
-  if (url.pathname.startsWith("/dashboard")) {
+  if (
+    (IS_DASHBOARD_HOST && !url.pathname.startsWith(STATIC_PREFIX)) ||
+    url.pathname.startsWith("/dashboard") ||
+    url.pathname === "/unsubscribe"
+  ) {
     event.respondWith(fetch(request));
     return;
   }

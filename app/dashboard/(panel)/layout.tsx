@@ -49,6 +49,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             {newComments > 0 && <span className="dash-badge">{newComments}</span>}
           </Link>
           <Link href={dashboardTabHref("supporters", base)}>الداعمين</Link>
+          <Link href={dashboardTabHref("subscribers", base)}>تنبيهات البريد</Link>
         </nav>
         <AdminPushNotifications publicKey={vapidPublicKey} />
         <div className="dash-sidebar__bottom">

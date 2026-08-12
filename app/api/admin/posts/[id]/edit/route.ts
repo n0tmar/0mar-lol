@@ -1,7 +1,8 @@
 import { dashboardRedirectUrl } from "@/lib/url";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, isAdminRequest } from "@/lib/auth";
 import { getPost, updatePost, type PostKind } from "@/lib/db";
+import { sendNewPostEmailNotification } from "@/lib/email-notifications";
 import {
   getObsoletePostFiles,
   planPostConversion,
@@ -198,6 +199,16 @@ export async function POST(
     download?.path,
   ]);
   await deleteUploadedFiles(obsoleteFiles);
+
+  if (post.published !== 1 && published) {
+    after(async () => {
+      try {
+        await sendNewPostEmailNotification({ id, title });
+      } catch (error) {
+        console.error("[email-notifications] failed to send new post", error);
+      }
+    });
+  }
 
   return NextResponse.redirect(dashboardRedirectUrl(request, "?edited=1"), 303);
 }

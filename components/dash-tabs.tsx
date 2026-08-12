@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconComment, IconEdit, IconHeart, IconText } from "@/components/icons";
+import {
+  IconComment,
+  IconEdit,
+  IconHeart,
+  IconMail,
+  IconText,
+} from "@/components/icons";
 import {
   dashboardTabHref,
   isDashboardTabActive,
@@ -21,6 +27,7 @@ export function DashTabs({ badge, base }: { badge: number; base: string }) {
     { id: "new", label: "منشور جديد", icon: IconEdit },
     { id: "comments", label: "التعليقات", icon: IconComment },
     { id: "supporters", label: "الداعمين", icon: IconHeart },
+    { id: "subscribers", label: "البريد", icon: IconMail },
   ];
 
   return (

@@ -7,7 +7,11 @@ import {
   moveSupporter,
   updateSupporter,
 } from "@/lib/db";
-import { parseSupporterInput } from "@/lib/supporters";
+import {
+  parseSupporterInput,
+  validateSupporterAvatarUpload,
+} from "@/lib/supporters";
+import { deleteUploadedFiles, saveSupporterAvatar } from "@/lib/uploads";
 import { dashboardRedirectUrl } from "@/lib/url";
 
 export const runtime = "nodejs";
@@ -43,7 +47,11 @@ export async function POST(
   const action = String(formData.get("action") || "");
 
   if (action === "delete") {
-    deleteSupporter(id);
+    const result = deleteSupporter(id);
+    if (Number(result.changes) !== 1) {
+      return redirectWithError(request, "تعذر حذف الداعم.");
+    }
+    await deleteUploadedFiles([supporter.avatar_path]);
     revalidatePath("/support");
     return NextResponse.redirect(
       dashboardRedirectUrl(request, "/supporters?deleted=1"),
@@ -78,19 +86,53 @@ export async function POST(
   });
   if (!parsed.ok) return redirectWithError(request, parsed.error);
 
+  const avatarValue = formData.get("avatar");
+  const avatarUpload =
+    avatarValue instanceof File && avatarValue.size > 0 ? avatarValue : null;
+  if (avatarUpload) {
+    const avatarError = validateSupporterAvatarUpload(avatarUpload);
+    if (avatarError) return redirectWithError(request, avatarError);
+  }
+
+  let savedAvatar: Awaited<ReturnType<typeof saveSupporterAvatar>> | null = null;
+  if (avatarUpload) {
+    try {
+      savedAvatar = await saveSupporterAvatar(avatarUpload);
+    } catch (error) {
+      console.error("[supporters] failed to process avatar", error);
+      return redirectWithError(
+        request,
+        "تعذر معالجة صورة الداعم. تأكد أنها صورة سليمة.",
+      );
+    }
+  }
+
+  const removeAvatar =
+    !savedAvatar &&
+    !!supporter.avatar_path &&
+    formData.get("remove_avatar") === "on";
+  const avatarChanged = !!savedAvatar || removeAvatar;
+  const avatarPath = savedAvatar?.path ?? (removeAvatar ? null : supporter.avatar_path);
+  const avatarUpdatedAt = savedAvatar
+    ? Math.max(Date.now(), supporter.avatar_updated_at + 1)
+    : removeAvatar
+      ? 0
+      : supporter.avatar_updated_at;
+
   try {
-    const result = updateSupporter(
-      id,
-      parsed.value,
-      expectedUpdatedAt,
-    );
+    const result = updateSupporter(id, parsed.value, expectedUpdatedAt, {
+      path: avatarPath,
+      updatedAt: avatarUpdatedAt,
+    });
     if (Number(result.changes) !== 1) {
+      await deleteUploadedFiles([savedAvatar?.path]);
       return redirectWithError(
         request,
         "تم تعديل الداعم من جلسة أخرى. حدّث الصفحة ثم حاول مجدداً.",
       );
     }
   } catch (error) {
+    await deleteUploadedFiles([savedAvatar?.path]);
     console.error("[supporters] failed to update supporter", error);
     const duplicate =
       error instanceof Error &&
@@ -103,6 +145,9 @@ export async function POST(
     );
   }
 
+  if (avatarChanged && supporter.avatar_path !== avatarPath) {
+    await deleteUploadedFiles([supporter.avatar_path]);
+  }
   revalidatePath("/support");
   return NextResponse.redirect(
     dashboardRedirectUrl(request, "/supporters?updated=1"),
