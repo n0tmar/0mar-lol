@@ -129,6 +129,8 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   const supportResponse = await fetch(`${origin}/support`);
   assert.equal(supportResponse.status, 200);
   const supportHtml = await supportResponse.text();
+  assert.match(supportHtml, /id="supporters-title"/);
+  assert.match(supportHtml, /أهل الدعم/);
   const paymentLinks = [
     "https://pay.ziina.com/martools/fh5DA6C_3?source=app",
     "https://pay.ziina.com/martools/ECp5CC5x6?source=app",

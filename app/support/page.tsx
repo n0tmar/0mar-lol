@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
+import { IconExternalLink } from "@/components/icons";
+import {
+  SUPPORTERS,
+  supporterTikTokUrl,
+} from "@/lib/supporters";
 import { SUPPORT_TIERS, supportQrPath } from "@/lib/support-tiers";
 
 export const metadata: Metadata = {
@@ -129,6 +134,57 @@ export default function SupportPage() {
             );
           })}
         </div>
+
+        <section className="supporters" aria-labelledby="supporters-title">
+          <header className="supporters__header">
+            <span className="supporters__eyebrow">شكر خاص</span>
+            <h2 id="supporters-title" className="supporters__title">
+              أهل الدعم
+            </h2>
+            <p className="supporters__intro">
+              ناس ساهموا في استمرار المحتوى — وهذي حساباتهم على تيك توك.
+            </p>
+          </header>
+
+          {SUPPORTERS.length > 0 ? (
+            <ul className="supporters__list">
+              {SUPPORTERS.map((supporter) => (
+                <li className="supporter" key={supporter.tiktok}>
+                  <span className="supporter__identity">
+                    <span className="supporter__avatar" aria-hidden="true">
+                      {supporter.name.trim().charAt(0) || "•"}
+                    </span>
+                    <span className="supporter__copy">
+                      <strong>{supporter.name}</strong>
+                      <span>{supporter.detail}</span>
+                    </span>
+                  </span>
+                  <a
+                    className="supporter__account"
+                    href={supporterTikTokUrl(supporter.tiktok)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`فتح حساب ${supporter.name} ${supporter.tiktok} على تيك توك`}
+                  >
+                    <span className="supporter__platform">TikTok</span>
+                    <bdi>{supporter.tiktok}</bdi>
+                    <IconExternalLink size={13} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="supporters__empty">
+              <span className="supporters__empty-mark" aria-hidden="true">
+                @
+              </span>
+              <span>
+                <strong>قريباً</strong>
+                <span>تظهر هنا حسابات الداعمين وتفاصيلهم.</span>
+              </span>
+            </div>
+          )}
+        </section>
 
         <p className="support-note">
           عندك سؤال أو اقتراح؟ راسلني على{" "}
