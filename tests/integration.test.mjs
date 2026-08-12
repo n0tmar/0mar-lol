@@ -131,6 +131,11 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   const supportHtml = await supportResponse.text();
   assert.match(supportHtml, /id="supporters-title"/);
   assert.match(supportHtml, /أهل الدعم/);
+  assert.ok(
+    supportHtml.indexOf('id="supporters-title"') <
+      supportHtml.indexOf('class="support-tiers"'),
+    "supporter wall should render above payment tiers",
+  );
   const paymentLinks = [
     "https://pay.ziina.com/martools/fh5DA6C_3?source=app",
     "https://pay.ziina.com/martools/ECp5CC5x6?source=app",
@@ -371,6 +376,171 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   )?.[1];
   assert.ok(commentId, "comment should be visible in dashboard");
 
+  // Supporters are fully managed from the dashboard and rendered above tiers.
+  const supportersDashboard = await fetch(`${origin}/dashboard/supporters`, {
+    headers: { Cookie: adminCookie },
+  });
+  assert.equal(supportersDashboard.status, 200);
+  assert.match(await supportersDashboard.text(), /إضافة داعم/);
+
+  const signedOutSupporters = await fetch(`${origin}/dashboard/supporters`, {
+    redirect: "manual",
+  });
+  assert.equal(signedOutSupporters.status, 307);
+  assert.match(
+    signedOutSupporters.headers.get("location") || "",
+    /\/dashboard\/login$/,
+  );
+
+  const unauthorizedSupporterForm = new FormData();
+  unauthorizedSupporterForm.set("name", "غير مصرح");
+  unauthorizedSupporterForm.set("tiktok", "@not_allowed");
+  const unauthorizedSupporter = await fetch(`${origin}/api/admin/supporters`, {
+    method: "POST",
+    body: unauthorizedSupporterForm,
+    redirect: "manual",
+    headers: { Origin: origin },
+  });
+  assert.equal(unauthorizedSupporter.status, 303);
+  assert.match(
+    unauthorizedSupporter.headers.get("location") || "",
+    /\/dashboard\/login$/,
+  );
+
+  async function submitSupporter(pathname, values) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(values)) form.set(key, value);
+    return fetch(`${origin}${pathname}`, {
+      method: "POST",
+      body: form,
+      redirect: "manual",
+      headers: { Cookie: adminCookie, Origin: origin },
+    });
+  }
+
+  const firstSupporter = await submitSupporter("/api/admin/supporters", {
+    name: "داعم أول",
+    tiktok: "@first_supporter",
+    detail: "دعم المحتوى من البداية",
+    visible: "on",
+  });
+  assert.equal(firstSupporter.status, 303);
+  assert.match(
+    firstSupporter.headers.get("location") || "",
+    /\/dashboard\/supporters\?created=1$/,
+  );
+
+  const secondSupporter = await submitSupporter("/api/admin/supporters", {
+    name: "داعم ثاني",
+    tiktok: "https://www.tiktok.com/@Second.Supporter",
+    detail: "ساهم في تطوير المشاريع الجديدة",
+    visible: "on",
+  });
+  assert.equal(secondSupporter.status, 303);
+
+  let publicSupportHtml = await (await fetch(`${origin}/support`)).text();
+  assert.match(publicSupportHtml, /داعم أول/);
+  assert.match(publicSupportHtml, /@first_supporter/);
+  assert.match(publicSupportHtml, /داعم ثاني/);
+  assert.match(publicSupportHtml, /@second\.supporter/);
+  assert.ok(
+    publicSupportHtml.indexOf("داعم أول") <
+      publicSupportHtml.indexOf("داعم ثاني"),
+  );
+  assert.ok(
+    publicSupportHtml.indexOf('id="supporters-title"') <
+      publicSupportHtml.indexOf('class="support-tiers"'),
+  );
+
+  let supportersDashboardHtml = await (
+    await fetch(`${origin}/dashboard/supporters`, {
+      headers: { Cookie: adminCookie },
+    })
+  ).text();
+  let supporterIds = [
+    ...supportersDashboardHtml.matchAll(/data-supporter-id="([a-f0-9-]+)"/g),
+  ].map((match) => match[1]);
+  let supporterRevisions = [
+    ...supportersDashboardHtml.matchAll(
+      /name="expected_updated_at" value="(\d+)"/g,
+    ),
+  ].map((match) => match[1]);
+  assert.equal(supporterIds.length, 2);
+  assert.equal(supporterRevisions.length, 2);
+  const [firstSupporterId, secondSupporterId] = supporterIds;
+
+  // Editing can hide a supporter from the public wall.
+  const hideSupporter = await submitSupporter(
+    `/api/admin/supporters/${firstSupporterId}`,
+    {
+      action: "update",
+      expected_updated_at: supporterRevisions[0],
+      name: "داعم أول معدل",
+      tiktok: "@first_supporter",
+      detail: "تفاصيل محدثة لا تظهر وهو مخفي",
+    },
+  );
+  assert.equal(hideSupporter.status, 303);
+  assert.match(
+    hideSupporter.headers.get("location") || "",
+    /\/dashboard\/supporters\?updated=1$/,
+  );
+  publicSupportHtml = await (await fetch(`${origin}/support`)).text();
+  assert.doesNotMatch(publicSupportHtml, /داعم أول معدل/);
+  assert.match(publicSupportHtml, /داعم ثاني/);
+
+  // Re-enable the supporter using the fresh optimistic revision.
+  supportersDashboardHtml = await (
+    await fetch(`${origin}/dashboard/supporters`, {
+      headers: { Cookie: adminCookie },
+    })
+  ).text();
+  supporterRevisions = [
+    ...supportersDashboardHtml.matchAll(
+      /name="expected_updated_at" value="(\d+)"/g,
+    ),
+  ].map((match) => match[1]);
+  const showSupporter = await submitSupporter(
+    `/api/admin/supporters/${firstSupporterId}`,
+    {
+      action: "update",
+      expected_updated_at: supporterRevisions[0],
+      name: "داعم أول معدل",
+      tiktok: "@first_supporter",
+      detail: "تفاصيل محدثة ظاهرة للزوار",
+      visible: "on",
+    },
+  );
+  assert.equal(showSupporter.status, 303);
+
+  // Move the second supporter above the first.
+  const moveSupporter = await submitSupporter(
+    `/api/admin/supporters/${secondSupporterId}`,
+    { action: "move_up" },
+  );
+  assert.equal(moveSupporter.status, 303);
+  publicSupportHtml = await (await fetch(`${origin}/support`)).text();
+  assert.match(publicSupportHtml, /تفاصيل محدثة ظاهرة للزوار/);
+  assert.ok(
+    publicSupportHtml.indexOf("داعم ثاني") <
+      publicSupportHtml.indexOf("داعم أول معدل"),
+  );
+
+  // Delete both entries; public page returns to its clean empty state.
+  const deleteFirstSupporter = await submitSupporter(
+    `/api/admin/supporters/${firstSupporterId}`,
+    { action: "delete" },
+  );
+  const deleteSecondSupporter = await submitSupporter(
+    `/api/admin/supporters/${secondSupporterId}`,
+    { action: "delete" },
+  );
+  assert.equal(deleteFirstSupporter.status, 303);
+  assert.equal(deleteSecondSupporter.status, 303);
+  publicSupportHtml = await (await fetch(`${origin}/support`)).text();
+  assert.doesNotMatch(publicSupportHtml, /داعم أول معدل|داعم ثاني/);
+  assert.match(publicSupportHtml, /تظهر هنا حسابات الداعمين وتفاصيلهم/);
+
   // Host-based routing (PUBLIC_HOST / DASHBOARD_HOST): the dashboard lives
   // on its own subdomain, at the root.
   const dashboardHost = "dashboard.0mar.test";
@@ -390,6 +560,15 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   assert.equal(
     movedComments.headers.location,
     `https://${dashboardHost}/comments`,
+  );
+
+  const movedSupporters = await fetchWithHost("/dashboard/supporters", {
+    host: publicHost,
+  });
+  assert.equal(movedSupporters.status, 308);
+  assert.equal(
+    movedSupporters.headers.location,
+    `https://${dashboardHost}/supporters`,
   );
 
   // Subdomain root serves the dashboard (signed in).
@@ -418,6 +597,13 @@ test("publishing, likes, downloads, comments and media work together", async (t)
   });
   assert.equal(subComments.status, 200);
   assert.match(await subComments.text(), /زائر تجريبي/);
+
+  const subSupporters = await fetchWithHost("/supporters", {
+    host: dashboardHost,
+    cookie: adminCookie,
+  });
+  assert.equal(subSupporters.status, 200);
+  assert.match(await subSupporters.text(), /إضافة داعم/);
 
   // Legacy /dashboard/* URLs on the subdomain redirect to clean root URLs.
   const legacySubdomainUrl = await fetchWithHost("/dashboard/comments", {

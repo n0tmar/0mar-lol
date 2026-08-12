@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { OWNER_NAME } from "./constants";
+import type { SupporterInput, SupporterRecord } from "./supporters";
 import { LIKE_KIND, type PostKind, type PostRecord, type CommentRecord } from "./types";
 
 export type { PostKind, PostRecord, CommentRecord } from "./types";
@@ -93,6 +94,18 @@ function initialize(database: DatabaseSync) {
       updated_at INTEGER NOT NULL
     );
 
+    -- Public supporter wall, managed from the dashboard.
+    CREATE TABLE IF NOT EXISTS supporters (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tiktok_handle TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      detail TEXT NOT NULL DEFAULT '',
+      visible INTEGER NOT NULL DEFAULT 1 CHECK (visible IN (0, 1)),
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     -- Lightweight migrations for older databases.
     CREATE INDEX IF NOT EXISTS comments_post_status_idx
       ON comments(post_id, status, created_at);
@@ -106,6 +119,8 @@ function initialize(database: DatabaseSync) {
       ON posts(published, created_at DESC);
     CREATE INDEX IF NOT EXISTS push_subscriptions_updated_idx
       ON push_subscriptions(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS supporters_visible_order_idx
+      ON supporters(visible, sort_order, created_at);
   `);
 
   // Migrations: add columns that may be missing in older databases.
@@ -226,6 +241,130 @@ export function getDatabase() {
 
 export function getDataDirectory() {
   return dataDirectory;
+}
+
+export function listVisibleSupporters(): SupporterRecord[] {
+  return getDatabase()
+    .prepare(
+      `SELECT * FROM supporters
+       WHERE visible = 1
+       ORDER BY sort_order ASC, created_at ASC`,
+    )
+    .all() as SupporterRecord[];
+}
+
+export function listDashboardSupporters(): SupporterRecord[] {
+  return getDatabase()
+    .prepare(
+      `SELECT * FROM supporters
+       ORDER BY sort_order ASC, created_at ASC`,
+    )
+    .all() as SupporterRecord[];
+}
+
+export function getSupporter(id: string): SupporterRecord | undefined {
+  return getDatabase()
+    .prepare("SELECT * FROM supporters WHERE id = ?")
+    .get(id) as SupporterRecord | undefined;
+}
+
+export function createSupporter(input: SupporterInput): string {
+  const database = getDatabase();
+  const id = randomUUID();
+  const now = Date.now();
+  const nextOrder = (
+    database
+      .prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS value FROM supporters")
+      .get() as { value: number }
+  ).value;
+
+  database
+    .prepare(
+      `INSERT INTO supporters (
+        id, name, tiktok_handle, detail, visible, sort_order,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      input.name,
+      input.tiktokHandle,
+      input.detail,
+      input.visible ? 1 : 0,
+      nextOrder,
+      now,
+      now,
+    );
+  return id;
+}
+
+export function updateSupporter(
+  id: string,
+  input: SupporterInput,
+  expectedUpdatedAt: number,
+) {
+  const updatedAt = Math.max(Date.now(), expectedUpdatedAt + 1);
+  return getDatabase()
+    .prepare(
+      `UPDATE supporters SET
+        name = ?, tiktok_handle = ?, detail = ?, visible = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+    )
+    .run(
+      input.name,
+      input.tiktokHandle,
+      input.detail,
+      input.visible ? 1 : 0,
+      updatedAt,
+      id,
+      expectedUpdatedAt,
+    );
+}
+
+export function moveSupporter(
+  id: string,
+  direction: "up" | "down",
+): boolean {
+  const database = getDatabase();
+  const rows = database
+    .prepare(
+      `SELECT id, sort_order, created_at FROM supporters
+       ORDER BY sort_order ASC, created_at ASC`,
+    )
+    .all() as Pick<SupporterRecord, "id" | "sort_order" | "created_at">[];
+  const index = rows.findIndex((row) => row.id === id);
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || targetIndex < 0 || targetIndex >= rows.length) return false;
+
+  const current = rows[index];
+  const target = rows[targetIndex];
+  const now = Date.now();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database
+      .prepare(
+        `UPDATE supporters
+         SET sort_order = ?, updated_at = MAX(updated_at + 1, ?)
+         WHERE id = ?`,
+      )
+      .run(target.sort_order, now, current.id);
+    database
+      .prepare(
+        `UPDATE supporters
+         SET sort_order = ?, updated_at = MAX(updated_at + 1, ?)
+         WHERE id = ?`,
+      )
+      .run(current.sort_order, now, target.id);
+    database.exec("COMMIT");
+    return true;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function deleteSupporter(id: string) {
+  return getDatabase().prepare("DELETE FROM supporters WHERE id = ?").run(id);
 }
 
 export function listPublishedPosts(): PostRecord[] {

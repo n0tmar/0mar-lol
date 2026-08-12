@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Avatar } from "@/components/avatar";
 import { IconExternalLink } from "@/components/icons";
-import {
-  SUPPORTERS,
-  supporterTikTokUrl,
-} from "@/lib/supporters";
+import { listVisibleSupporters } from "@/lib/db";
+import { supporterTikTokUrl } from "@/lib/supporters";
 import { SUPPORT_TIERS, supportQrPath } from "@/lib/support-tiers";
 
 export const metadata: Metadata = {
@@ -19,7 +18,12 @@ function formatPrice(value: number) {
   return value % 1 === 0 ? String(value) : value.toFixed(2);
 }
 
-export default function SupportPage() {
+export default async function SupportPage() {
+  // node:sqlite is synchronous and therefore looks static to Next.js 16.
+  // This page needs the live runtime volume after dashboard mutations.
+  await connection();
+  const supporters = listVisibleSupporters();
+
   return (
     <main className="public-main">
       <div className="bio-shell support-shell">
@@ -40,6 +44,57 @@ export default function SupportPage() {
             عبر Ziina.
           </p>
         </header>
+
+        <section className="supporters" aria-labelledby="supporters-title">
+          <header className="supporters__header">
+            <span className="supporters__eyebrow">شكر خاص</span>
+            <h2 id="supporters-title" className="supporters__title">
+              أهل الدعم
+            </h2>
+            <p className="supporters__intro">
+              ناس ساهموا في استمرار المحتوى — وهذي حساباتهم على تيك توك.
+            </p>
+          </header>
+
+          {supporters.length > 0 ? (
+            <ul className="supporters__list">
+              {supporters.map((supporter) => (
+                <li className="supporter" key={supporter.id}>
+                  <span className="supporter__identity">
+                    <span className="supporter__avatar" aria-hidden="true">
+                      {supporter.name.trim().charAt(0) || "•"}
+                    </span>
+                    <span className="supporter__copy">
+                      <strong>{supporter.name}</strong>
+                      {supporter.detail && <span>{supporter.detail}</span>}
+                    </span>
+                  </span>
+                  <a
+                    className="supporter__account"
+                    href={supporterTikTokUrl(supporter.tiktok_handle)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`فتح حساب ${supporter.name} ${supporter.tiktok_handle} على تيك توك`}
+                  >
+                    <span className="supporter__platform">TikTok</span>
+                    <bdi>{supporter.tiktok_handle}</bdi>
+                    <IconExternalLink size={13} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="supporters__empty">
+              <span className="supporters__empty-mark" aria-hidden="true">
+                @
+              </span>
+              <span>
+                <strong>قريباً</strong>
+                <span>تظهر هنا حسابات الداعمين وتفاصيلهم.</span>
+              </span>
+            </div>
+          )}
+        </section>
 
         <div className="support-tiers">
           {SUPPORT_TIERS.map((tier, index) => {
@@ -134,57 +189,6 @@ export default function SupportPage() {
             );
           })}
         </div>
-
-        <section className="supporters" aria-labelledby="supporters-title">
-          <header className="supporters__header">
-            <span className="supporters__eyebrow">شكر خاص</span>
-            <h2 id="supporters-title" className="supporters__title">
-              أهل الدعم
-            </h2>
-            <p className="supporters__intro">
-              ناس ساهموا في استمرار المحتوى — وهذي حساباتهم على تيك توك.
-            </p>
-          </header>
-
-          {SUPPORTERS.length > 0 ? (
-            <ul className="supporters__list">
-              {SUPPORTERS.map((supporter) => (
-                <li className="supporter" key={supporter.tiktok}>
-                  <span className="supporter__identity">
-                    <span className="supporter__avatar" aria-hidden="true">
-                      {supporter.name.trim().charAt(0) || "•"}
-                    </span>
-                    <span className="supporter__copy">
-                      <strong>{supporter.name}</strong>
-                      <span>{supporter.detail}</span>
-                    </span>
-                  </span>
-                  <a
-                    className="supporter__account"
-                    href={supporterTikTokUrl(supporter.tiktok)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`فتح حساب ${supporter.name} ${supporter.tiktok} على تيك توك`}
-                  >
-                    <span className="supporter__platform">TikTok</span>
-                    <bdi>{supporter.tiktok}</bdi>
-                    <IconExternalLink size={13} />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="supporters__empty">
-              <span className="supporters__empty-mark" aria-hidden="true">
-                @
-              </span>
-              <span>
-                <strong>قريباً</strong>
-                <span>تظهر هنا حسابات الداعمين وتفاصيلهم.</span>
-              </span>
-            </div>
-          )}
-        </section>
 
         <p className="support-note">
           عندك سؤال أو اقتراح؟ راسلني على{" "}

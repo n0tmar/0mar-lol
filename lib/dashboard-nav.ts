@@ -1,4 +1,4 @@
-export type DashboardTabId = "posts" | "new" | "comments";
+export type DashboardTabId = "posts" | "new" | "comments" | "supporters";
 
 /**
  * Dashboard routes live at /dashboard on the public host and at the root on
