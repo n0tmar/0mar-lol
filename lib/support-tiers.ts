@@ -47,7 +47,7 @@ export const SUPPORT_TIERS = [
     id: "sponsor",
     name: "راعي",
     en: "Sponsor",
-    desc: "الراعي الرسمي، شكراً خاص من القلب",
+    desc: "الراعي الرسمي، شكر خاص من القلب",
     usd: 50,
     sar: 187.5,
     url: "https://pay.ziina.com/martools/rgp_YhNg8?source=app",
